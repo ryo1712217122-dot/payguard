@@ -919,12 +919,33 @@
 
   // ===== DEFAULT CATEGORIES =====
   const DEFAULT_CATEGORIES = [
-    { id: 'food',          emoji: '🍔', label: '食費',       isImpulse: false, color: '#ffa502' },
-    { id: 'impulse',       emoji: '🛍️', label: '衝動買い',   isImpulse: true,  color: '#ff4757' },
-    { id: 'necessary',     emoji: '📦', label: '必要な支出', isImpulse: false, color: '#2ed573' },
-    { id: 'entertainment', emoji: '🎮', label: '娯楽',       isImpulse: false, color: '#6c63ff' },
-    { id: 'transport',     emoji: '🚗', label: '交通費',     isImpulse: false, color: '#1ed7ff' },
-    { id: 'other',         emoji: '💊', label: 'その他',     isImpulse: false, color: '#747d8c' },
+    { id: 'salary',          emoji: '💰', label: '給料',         isImpulse: false, color: '#2ed573' },
+    { id: 'pocket_money',    emoji: '🪙', label: 'おこづかい',   isImpulse: false, color: '#ffa502' },
+    { id: 'bonus',           emoji: '🎁', label: '賞与',         isImpulse: false, color: '#2ed573' },
+    { id: 'entertainment',   emoji: '🎮', label: '遊び',         isImpulse: false, color: '#6c63ff' },
+    { id: 'communication',   emoji: '📱', label: '通信費',       isImpulse: false, color: '#1ed7ff' },
+    { id: 'side_job',        emoji: '💼', label: '副業',         isImpulse: false, color: '#2ed573' },
+    { id: 'transport',       emoji: '🚃', label: '交通費',       isImpulse: false, color: '#1ed7ff' },
+    { id: 'investment',      emoji: '📈', label: '投資',         isImpulse: false, color: '#2ed573' },
+    { id: 'clothing',        emoji: '👕', label: '衣服',         isImpulse: false, color: '#ffa502' },
+    { id: 'drink_food',      emoji: '☕', label: '飲み物・食べ物',isImpulse: false, color: '#ffa502' },
+    { id: 'food',            emoji: '🍔', label: '食費',         isImpulse: false, color: '#ffa502' },
+    { id: 'none',            emoji: '❓', label: 'なし',         isImpulse: false, color: '#747d8c' },
+    { id: 'extra_income',    emoji: '💸', label: '臨時収入',     isImpulse: false, color: '#2ed573' },
+    { id: 'impulse',         emoji: '🛍️', label: '衝動買い',     isImpulse: true,  color: '#ff4757' },
+    { id: 'luxury',          emoji: '🚬', label: '嗜好品',       isImpulse: true,  color: '#ff4757' },
+    { id: 'medical',         emoji: '🏥', label: '医療費',       isImpulse: false, color: '#747d8c' },
+    { id: 'beauty',          emoji: '💄', label: '美容',         isImpulse: false, color: '#6c63ff' },
+    { id: 'study',           emoji: '📚', label: '勉強',         isImpulse: false, color: '#2ed573' },
+    { id: 'subscription',    emoji: '🔄', label: 'サブスク',     isImpulse: false, color: '#1ed7ff' },
+    { id: 'repayment',       emoji: '💳', label: '返済',         isImpulse: false, color: '#747d8c' },
+    { id: 'live',            emoji: '🎸', label: 'ライブ',       isImpulse: false, color: '#6c63ff' },
+    { id: 'smoking_machine', emoji: '🚬', label: '喫煙マシーン', isImpulse: true,  color: '#ff4757' },
+    { id: 'electronics',     emoji: '🔌', label: '電化製品',     isImpulse: false, color: '#6c63ff' },
+    { id: 'gift',            emoji: '🎁', label: 'お土産',       isImpulse: false, color: '#ffa502' },
+    { id: 'pension',         emoji: '👵', label: '年金',         isImpulse: false, color: '#2ed573' },
+    { id: 'tax',             emoji: '🏛️', label: '市民税',       isImpulse: false, color: '#747d8c' },
+    { id: 'miscellaneous',   emoji: '🧸', label: '雑貨',         isImpulse: false, color: '#ffa502' }
   ];
 
   const EMOJI_OPTIONS = ['🍔','🍕','🍜','☕','🍱','🛍️','👕','👟','🎮','🎬','📚','💊','💄','🏋️','🚗','🚃','✈️','🏠','💡','📱','💻','🎁','🌸','⚽','🐶','🎵','🍺','🌮','🔧','💰','🏥','🎓','🌿','🌊'];
@@ -966,7 +987,13 @@
   function loadCategories() {
     try {
       const saved = JSON.parse(localStorage.getItem(CATEGORIES_KEY) || 'null');
-      categories = saved || JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
+      // If the user has older version categories (fewer than 20), overwrite with the new defaults
+      if (saved && saved.length > 20) {
+        categories = saved;
+      } else {
+        categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
+        saveCategories();
+      }
     } catch { categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES)); }
   }
   function saveCategories() { localStorage.setItem(CATEGORIES_KEY, JSON.stringify(categories)); }
@@ -1273,7 +1300,7 @@
       const pay = getPayById(r.payMethod);
       const d = new Date(r.timestamp);
       const ds = `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-      const amtClass = cat.isImpulse ? 'impulse' : (r.catId === 'necessary' ? 'necessary' : '');
+      const amtClass = cat.isImpulse ? 'impulse' : '';
       const tagStyle = `background:${hexAlpha(cat.color,0.15)};color:${cat.color}`;
       return `
         <div class="tx-item">
@@ -1283,7 +1310,10 @@
             <div class="tx-meta">${ds} · ${pay.emoji} ${pay.label.replace('\n','')}</div>
             <span class="tx-tag" style="${tagStyle}">${cat.label}</span>
           </div>
-          <div class="tx-amount ${amtClass}">¥${r.amount.toLocaleString('ja-JP')}</div>
+          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
+            <div class="tx-amount ${amtClass}">¥${r.amount.toLocaleString('ja-JP')}</div>
+            <button class="cat-editor-btn danger" style="padding: 4px 8px; font-size: 11px; height: auto;" onclick="deleteRecord(${r.id})" title="削除">🗑</button>
+          </div>
         </div>`;
     }).join('');
   }
@@ -1568,10 +1598,25 @@
     showToast('✅ CSVをダウンロードしました');
   }
 
+  function deleteRecord(id) {
+    if (!confirm('🗑️ この決済記録を削除しますか？')) return;
+    records = records.filter(r => r.id !== id);
+    saveData();
+    localStorage.setItem('payguard_demo_loaded', 'true'); // Prevents demo data load on empty records
+    updateDashboard();
+    renderHistory();
+    renderAnalysis();
+    showToast('🗑️ 記録を削除しました');
+  }
+
   function clearAllData() {
     if (!confirm('⚠️ すべての記録を削除します。この操作は取り消せません。')) return;
-    records = []; localStorage.removeItem(STORAGE_KEY);
-    updateDashboard(); renderHistory(); renderAnalysis();
+    records = [];
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.setItem('payguard_demo_loaded', 'true'); // Prevents demo data load on empty records
+    updateDashboard();
+    renderHistory();
+    renderAnalysis();
     showToast('🗑️ データを削除しました');
   }
 
@@ -1590,18 +1635,23 @@
 
   // ===== DEMO DATA =====
   function addDemoData() {
-    if (records.length > 0) return;
+    if (localStorage.getItem('payguard_demo_loaded') === 'true') return;
+    if (records.length > 0) {
+      localStorage.setItem('payguard_demo_loaded', 'true');
+      return;
+    }
     const now = new Date();
     records = [
       { id: now-1, amount:580,  catId:'food',          reason:'昼ごはんのおにぎりとお茶',           payMethod:'paypay',   timestamp:new Date(now-2*3600000).toISOString() },
       { id: now-2, amount:2980, catId:'impulse',        reason:'なんとなくコンビニでお菓子をたくさん買ってしまった', payMethod:'paypay',   timestamp:new Date(now-5*3600000).toISOString() },
       { id: now-3, amount:1200, catId:'transport',      reason:'電車で移動',                         payMethod:'suica',    timestamp:new Date(now-86400000).toISOString() },
-      { id: now-4, amount:500,  catId:'entertainment',  reason:'漫画の新刊を1冊購入',                payMethod:'cash',     timestamp:new Date(now-2*86400000).toISOString() },
-      { id: now-5, amount:4500, catId:'necessary',      reason:'週の食材をまとめ買い',               payMethod:'applepay', timestamp:new Date(now-3*86400000).toISOString() },
+      { id: now-4, amount:500,  catId:'entertainment',  reason:'遊びで漫画を購入',                   payMethod:'cash',     timestamp:new Date(now-2*86400000).toISOString() },
+      { id: now-5, amount:4500, catId:'food',           reason:'週の食材をまとめ買い',               payMethod:'applepay', timestamp:new Date(now-3*86400000).toISOString() },
       { id: now-6, amount:1800, catId:'impulse',        reason:'安かったので衝動的に服を購入',        payMethod:'paypay',   timestamp:new Date(now-4*86400000).toISOString() },
       { id: now-7, amount:650,  catId:'food',           reason:'コーヒーと軽食',                     payMethod:'applepay', timestamp:new Date(now-5*86400000).toISOString() },
     ];
     saveData();
+    localStorage.setItem('payguard_demo_loaded', 'true');
   }
 
   // ===== START =====
