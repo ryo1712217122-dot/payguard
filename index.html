@@ -1,0 +1,1612 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="PayGuard" />
+  <meta name="theme-color" content="#0d0f1a" />
+  <title>PayGuard - 無駄遣い防止アプリ</title>
+  <meta name="description" content="決済前に理由を記録して無駄遣いを防止するアプリ" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <style>
+    /* ===== DESIGN TOKENS ===== */
+    :root {
+      --bg-primary: #0d0f1a;
+      --bg-secondary: #13162b;
+      --bg-card: rgba(255,255,255,0.05);
+      --bg-card-hover: rgba(255,255,255,0.08);
+      --glass: rgba(255,255,255,0.06);
+      --glass-border: rgba(255,255,255,0.12);
+      --accent: #6c63ff;
+      --accent-light: #8b85ff;
+      --accent-glow: rgba(108,99,255,0.3);
+      --danger: #ff4757;
+      --danger-light: rgba(255,71,87,0.15);
+      --success: #2ed573;
+      --success-light: rgba(46,213,115,0.15);
+      --warning: #ffa502;
+      --warning-light: rgba(255,165,2,0.15);
+      --text-primary: #f0f0ff;
+      --text-secondary: rgba(240,240,255,0.6);
+      --text-muted: rgba(240,240,255,0.35);
+      --border: rgba(255,255,255,0.08);
+      --radius-sm: 12px;
+      --radius-md: 18px;
+      --radius-lg: 24px;
+      --radius-xl: 32px;
+      --font-jp: 'Noto Sans JP', sans-serif;
+      --font-en: 'Inter', sans-serif;
+      --shadow-sm: 0 4px 16px rgba(0,0,0,0.3);
+      --shadow-md: 0 8px 32px rgba(0,0,0,0.4);
+      --shadow-lg: 0 20px 60px rgba(0,0,0,0.5);
+      --transition: all 0.25s cubic-bezier(0.4,0,0.2,1);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      font-family: var(--font-jp);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100dvh;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--glass-border); border-radius: 2px; }
+
+    .ambient {
+      position: fixed; inset: 0; pointer-events: none; z-index: 0;
+      background:
+        radial-gradient(ellipse 60% 50% at 20% 10%, rgba(108,99,255,0.15) 0%, transparent 60%),
+        radial-gradient(ellipse 40% 40% at 80% 80%, rgba(255,71,87,0.08) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 60% at 60% 40%, rgba(46,213,115,0.05) 0%, transparent 60%);
+    }
+
+    .app { position: relative; z-index: 1; min-height: 100dvh; display: flex; flex-direction: column; }
+    .safe-top { padding-top: env(safe-area-inset-top, 0px); }
+    .safe-bottom { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 72px); }
+
+    .screen {
+      display: none; flex-direction: column; flex: 1;
+      animation: fadeSlideIn 0.3s ease;
+    }
+    .screen.active { display: flex; }
+    @keyframes fadeSlideIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ===== BOTTOM NAV ===== */
+    .bottom-nav {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: rgba(13,15,26,0.9);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border-top: 1px solid var(--glass-border);
+      display: flex;
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      z-index: 100;
+    }
+    .nav-item {
+      flex: 1; display: flex; flex-direction: column; align-items: center;
+      padding: 10px 0 8px; cursor: pointer; transition: var(--transition);
+      border: none; background: none; color: var(--text-muted); gap: 4px;
+    }
+    .nav-item.active { color: var(--accent); }
+    .nav-item .icon { font-size: 22px; transition: transform 0.2s ease; }
+    .nav-item.active .icon { transform: scale(1.15); }
+    .nav-item span { font-size: 10px; font-family: var(--font-jp); letter-spacing: 0.02em; }
+
+    .fab {
+      position: fixed;
+      bottom: calc(env(safe-area-inset-bottom, 0px) + 24px);
+      left: 50%; transform: translateX(-50%);
+      width: 64px; height: 64px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), #9b4dff);
+      border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 8px 32px var(--accent-glow), 0 4px 16px rgba(0,0,0,0.4);
+      transition: var(--transition); z-index: 101; font-size: 28px;
+    }
+    .fab:hover { transform: translateX(-50%) scale(1.08); box-shadow: 0 12px 40px var(--accent-glow); }
+    .fab:active { transform: translateX(-50%) scale(0.95); }
+
+    /* ===== HEADER ===== */
+    .page-header {
+      padding: calc(env(safe-area-inset-top, 20px) + 16px) 20px 16px;
+    }
+    .page-header h1 {
+      font-size: 28px; font-weight: 800; font-family: var(--font-en);
+      background: linear-gradient(135deg, #fff 30%, var(--accent-light));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .page-header .subtitle { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
+
+    /* ===== CARDS ===== */
+    .card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0 20px 16px; }
+    .stat-card {
+      background: var(--glass); border: 1px solid var(--glass-border);
+      border-radius: var(--radius-md); padding: 16px; backdrop-filter: blur(10px);
+    }
+    .stat-card .label { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.08em; }
+    .stat-card .value {
+      font-size: 24px; font-weight: 800; font-family: var(--font-en);
+      margin-top: 6px;
+      background: linear-gradient(135deg, #fff, var(--accent-light));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .stat-card .sub { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+    .stat-card.danger { border-color: rgba(255,71,87,0.3); background: var(--danger-light); }
+    .stat-card.danger .value { background: linear-gradient(135deg, #ff4757, #ff6b81); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .stat-card.success { border-color: rgba(46,213,115,0.3); background: var(--success-light); }
+
+    /* ===== SECTION ===== */
+    .section { padding: 0 20px 16px; }
+    .section-title {
+      font-size: 13px; font-weight: 600; color: var(--text-secondary);
+      text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px;
+    }
+
+    /* ===== TRANSACTION LIST ===== */
+    .tx-list { display: flex; flex-direction: column; gap: 8px; }
+    .tx-item {
+      display: flex; align-items: center; gap: 12px;
+      background: var(--glass); border: 1px solid var(--glass-border);
+      border-radius: var(--radius-md); padding: 14px 16px;
+      transition: var(--transition);
+    }
+    .tx-item:hover { background: var(--bg-card-hover); }
+    .tx-emoji {
+      font-size: 28px; width: 44px; height: 44px;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(255,255,255,0.06); border-radius: 12px; flex-shrink: 0;
+    }
+    .tx-info { flex: 1; min-width: 0; }
+    .tx-reason { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tx-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .tx-amount { font-family: var(--font-en); font-weight: 700; font-size: 16px; flex-shrink: 0; }
+    .tx-amount.impulse { color: var(--danger); }
+    .tx-amount.necessary { color: var(--success); }
+    .tx-tag { font-size: 10px; padding: 2px 8px; border-radius: 20px; font-weight: 600; margin-top: 4px; display: inline-block; }
+
+    /* ===== WARNING BANNER ===== */
+    .warning-banner {
+      margin: 0 20px 16px; padding: 16px 18px;
+      background: linear-gradient(135deg, rgba(255,71,87,0.15), rgba(255,165,2,0.1));
+      border: 1px solid rgba(255,71,87,0.3);
+      border-radius: var(--radius-md);
+      display: flex; align-items: flex-start; gap: 12px;
+    }
+    .warning-banner .icon { font-size: 24px; flex-shrink: 0; }
+    .warning-banner .text { font-size: 13px; color: var(--text-primary); line-height: 1.5; }
+    .warning-banner .text strong { color: var(--danger); }
+    .warning-banner.hidden { display: none; }
+
+    /* ===== RECORD MODAL ===== */
+    .record-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+      z-index: 200; display: flex; align-items: flex-end; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+    }
+    .record-overlay.open { opacity: 1; pointer-events: all; }
+    .record-sheet {
+      background: #16192e; border: 1px solid var(--glass-border);
+      border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+      padding: 0 20px calc(env(safe-area-inset-bottom, 0px) + 24px);
+      width: 100%; max-width: 480px;
+      transform: translateY(100%);
+      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      max-height: 92dvh; overflow-y: auto;
+    }
+    .record-overlay.open .record-sheet { transform: translateY(0); }
+    .sheet-handle { width: 40px; height: 4px; background: var(--glass-border); border-radius: 2px; margin: 14px auto 20px; }
+    .sheet-title { font-size: 20px; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+
+    /* ===== AMOUNT INPUT ===== */
+    .amount-display {
+      background: var(--glass); border: 1px solid var(--glass-border);
+      border-radius: var(--radius-md); padding: 16px 20px; margin-bottom: 16px; text-align: center;
+    }
+    .amount-display .label { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.1em; }
+    .amount-display .number {
+      font-family: var(--font-en); font-size: 40px; font-weight: 800;
+      color: var(--text-primary); margin-top: 4px; min-height: 52px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .amount-display .number.placeholder { color: var(--text-muted); }
+
+    /* ===== KEYPAD ===== */
+    .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+    .keypad-btn {
+      background: var(--glass); border: 1px solid var(--glass-border);
+      border-radius: var(--radius-sm); color: var(--text-primary);
+      font-size: 20px; font-weight: 600; font-family: var(--font-en);
+      padding: 16px; cursor: pointer; transition: var(--transition);
+      -webkit-tap-highlight-color: transparent;
+    }
+    .keypad-btn:active { background: var(--glass-border); transform: scale(0.95); }
+    .keypad-btn.del { color: var(--danger); font-size: 22px; }
+
+    /* ===== PAYMENT METHOD SELECTOR ===== */
+    .pay-method-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 16px;
+    }
+    .pay-method-btn {
+      background: var(--glass); border: 2px solid var(--glass-border);
+      border-radius: var(--radius-sm); color: var(--text-secondary);
+      cursor: pointer; padding: 10px 4px;
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+      transition: var(--transition); -webkit-tap-highlight-color: transparent;
+    }
+    .pay-method-btn .pm-icon { font-size: 22px; }
+    .pay-method-btn .pm-name { font-size: 10px; font-family: var(--font-jp); font-weight: 600; text-align: center; line-height: 1.3; }
+    .pay-method-btn.selected { border-color: var(--accent); background: rgba(108,99,255,0.15); color: var(--text-primary); }
+    .pay-method-badge {
+      font-size: 9px; background: rgba(108,99,255,0.25); color: var(--accent-light);
+      border-radius: 4px; padding: 1px 5px; margin-top: 2px; font-weight: 600;
+    }
+    .pay-method-badge.auto { background: rgba(46,213,115,0.2); color: var(--success); }
+
+    /* ===== CATEGORY GRID ===== */
+    .category-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px;
+    }
+    .cat-btn {
+      background: var(--glass); border: 2px solid var(--glass-border);
+      border-radius: var(--radius-sm); color: var(--text-secondary);
+      cursor: pointer; padding: 12px 6px;
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+      transition: var(--transition); -webkit-tap-highlight-color: transparent;
+      min-height: 70px; justify-content: center;
+    }
+    .cat-btn .cat-icon { font-size: 24px; }
+    .cat-btn .cat-name { font-size: 11px; font-family: var(--font-jp); font-weight: 500; text-align: center; }
+    .cat-btn.selected { border-color: var(--accent); background: rgba(108,99,255,0.15); color: var(--text-primary); }
+    .cat-btn.selected[data-is-impulse="true"] { border-color: var(--danger); background: var(--danger-light); }
+
+    /* ===== TEXT INPUT ===== */
+    .form-group { margin-bottom: 16px; }
+    .form-label { font-size: 12px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; display: block; }
+    .form-input {
+      width: 100%; background: var(--glass); border: 1px solid var(--glass-border);
+      border-radius: var(--radius-sm); color: var(--text-primary);
+      font-size: 15px; font-family: var(--font-jp);
+      padding: 14px 16px; outline: none; transition: var(--transition);
+      -webkit-appearance: none;
+    }
+    .form-input:focus { border-color: var(--accent); background: rgba(108,99,255,0.08); }
+    .form-input::placeholder { color: var(--text-muted); }
+    textarea.form-input { resize: none; height: 72px; }
+
+    /* ===== IMPULSE WARNING ===== */
+    .impulse-warning {
+      background: linear-gradient(135deg, rgba(255,71,87,0.2), rgba(255,100,50,0.1));
+      border: 1px solid rgba(255,71,87,0.4);
+      border-radius: var(--radius-md); padding: 14px; margin-bottom: 16px;
+      display: none; animation: pulse-warning 1.5s infinite;
+    }
+    .impulse-warning.show { display: flex; gap: 10px; align-items: flex-start; }
+    @keyframes pulse-warning {
+      0%, 100% { border-color: rgba(255,71,87,0.4); }
+      50% { border-color: rgba(255,71,87,0.8); box-shadow: 0 0 20px rgba(255,71,87,0.2); }
+    }
+    .impulse-warning .wi-icon { font-size: 22px; flex-shrink: 0; }
+    .impulse-warning .wi-text { font-size: 13px; line-height: 1.6; }
+    .impulse-warning .wi-text strong { color: var(--danger); display: block; margin-bottom: 4px; }
+
+    /* ===== BUTTONS ===== */
+    .submit-row { display: flex; gap: 10px; }
+    .btn-primary {
+      flex: 1; background: linear-gradient(135deg, var(--accent), #9b4dff);
+      border: none; border-radius: var(--radius-md); color: white;
+      font-size: 16px; font-weight: 700; font-family: var(--font-jp);
+      padding: 18px; cursor: pointer; transition: var(--transition);
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-primary:active { transform: scale(0.97); opacity: 0.9; }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-secondary {
+      background: var(--glass); border: 1px solid var(--glass-border);
+      border-radius: var(--radius-md); color: var(--text-secondary);
+      font-size: 16px; font-weight: 600; font-family: var(--font-jp);
+      padding: 18px 20px; cursor: pointer; transition: var(--transition);
+    }
+
+    /* ===== CHART ===== */
+    .chart-container {
+      background: var(--glass); border: 1px solid var(--glass-border);
+      border-radius: var(--radius-lg); padding: 20px; margin: 0 20px 16px; position: relative;
+    }
+    .chart-title { font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .chart-wrapper { position: relative; height: 180px; }
+    .donut-center {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      pointer-events: none;
+    }
+    .donut-center .dc-value { font-family: var(--font-en); font-size: 22px; font-weight: 800; }
+    .donut-center .dc-label { font-size: 10px; color: var(--text-secondary); margin-top: 2px; }
+
+    /* ===== IMPULSE METER ===== */
+    .impulse-meter {
+      background: var(--glass); border: 1px solid rgba(255,71,87,0.2);
+      border-radius: var(--radius-lg); padding: 20px; margin: 0 20px 16px;
+      display: flex; gap: 16px; align-items: center;
+    }
+    .meter-ring-wrapper { position: relative; width: 80px; height: 80px; flex-shrink: 0; }
+    .meter-ring svg { transform: rotate(-90deg); }
+    .meter-ring-label {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      font-family: var(--font-en); font-weight: 800; font-size: 18px; color: var(--danger);
+    }
+    .meter-ring-label .pct-label { font-size: 9px; color: var(--text-muted); font-weight: 400; }
+    .impulse-meter-text h3 { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+    .impulse-meter-text p { font-size: 12px; color: var(--text-secondary); line-height: 1.6; }
+
+    /* ===== ANALYSIS ===== */
+    .period-tabs { display: flex; gap: 8px; margin: 0 20px 16px; }
+    .period-tab {
+      flex: 1; background: var(--glass); border: 1px solid var(--glass-border);
+      border-radius: var(--radius-sm); color: var(--text-secondary);
+      font-size: 13px; font-weight: 600; font-family: var(--font-jp);
+      padding: 10px; cursor: pointer; transition: var(--transition);
+    }
+    .period-tab.active { background: rgba(108,99,255,0.2); border-color: var(--accent); color: var(--accent-light); }
+    .period-summary {
+      background: linear-gradient(135deg, rgba(108,99,255,0.15), rgba(155,77,255,0.1));
+      border: 1px solid rgba(108,99,255,0.2); border-radius: var(--radius-md);
+      padding: 16px 20px; margin: 0 20px 16px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .period-summary .ps-label { font-size: 13px; color: var(--text-secondary); }
+    .period-summary .ps-amount { font-family: var(--font-en); font-size: 28px; font-weight: 800; color: var(--accent-light); }
+    .period-summary .ps-count { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+    /* ===== RANKING ===== */
+    .ranking-list { display: flex; flex-direction: column; gap: 8px; }
+    .rank-item {
+      display: flex; align-items: center; gap: 12px;
+      background: var(--glass); border: 1px solid var(--glass-border);
+      border-radius: var(--radius-sm); padding: 12px 14px;
+    }
+    .rank-num { font-family: var(--font-en); font-weight: 800; font-size: 18px; color: var(--text-muted); width: 28px; flex-shrink: 0; text-align: center; }
+    .rank-num.gold { color: #ffd700; }
+    .rank-num.silver { color: #c0c0c0; }
+    .rank-num.bronze { color: #cd7f32; }
+    .rank-info { flex: 1; }
+    .rank-info .reason { font-size: 14px; font-weight: 500; }
+    .rank-info .times { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .rank-amount { font-family: var(--font-en); font-weight: 700; font-size: 15px; color: var(--danger); }
+
+    /* ===== SETTINGS ===== */
+    .settings-section { padding: 0 20px; }
+    .settings-item {
+      display: flex; align-items: center; gap: 14px;
+      background: var(--glass); border: 1px solid var(--glass-border);
+      border-radius: var(--radius-md); padding: 16px; margin-bottom: 10px;
+    }
+    .settings-icon { font-size: 24px; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.06); border-radius: 10px; }
+    .settings-info { flex: 1; }
+    .settings-info .si-title { font-size: 15px; font-weight: 600; }
+    .settings-info .si-desc { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .settings-action {
+      background: var(--glass); border: 1px solid var(--glass-border); border-radius: 8px;
+      color: var(--text-secondary); font-size: 13px; font-family: var(--font-jp);
+      padding: 8px 14px; cursor: pointer; transition: var(--transition);
+    }
+    .settings-action:hover { background: var(--bg-card-hover); color: var(--text-primary); }
+    .settings-action.enabled { border-color: var(--accent); color: var(--accent-light); background: rgba(108,99,255,0.1); }
+
+    .toggle {
+      width: 46px; height: 26px; background: var(--glass-border); border-radius: 13px;
+      cursor: pointer; position: relative; transition: background 0.3s ease; flex-shrink: 0;
+    }
+    .toggle::after {
+      content: ''; position: absolute; width: 20px; height: 20px; background: white;
+      border-radius: 50%; top: 3px; left: 3px; transition: transform 0.3s ease;
+    }
+    .toggle.on { background: var(--accent); }
+    .toggle.on::after { transform: translateX(20px); }
+
+    /* ===== CATEGORY EDITOR (Settings) ===== */
+    .cat-editor-list { display: flex; flex-direction: column; gap: 8px; }
+    .cat-editor-item {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--glass); border: 1px solid var(--glass-border);
+      border-radius: var(--radius-sm); padding: 10px 14px;
+    }
+    .cat-editor-emoji { font-size: 22px; width: 36px; text-align: center; flex-shrink: 0; }
+    .cat-editor-name { flex: 1; font-size: 14px; font-weight: 500; }
+    .cat-editor-impulse-badge {
+      font-size: 10px; color: var(--danger); background: var(--danger-light);
+      border-radius: 6px; padding: 2px 7px; font-weight: 600;
+    }
+    .cat-editor-actions { display: flex; gap: 6px; }
+    .cat-editor-btn {
+      background: transparent; border: 1px solid var(--glass-border); border-radius: 8px;
+      color: var(--text-muted); font-size: 14px; padding: 5px 10px; cursor: pointer;
+      transition: var(--transition); -webkit-tap-highlight-color: transparent;
+    }
+    .cat-editor-btn:hover { background: var(--glass-border); color: var(--text-primary); }
+    .cat-editor-btn.danger:hover { border-color: var(--danger); color: var(--danger); background: var(--danger-light); }
+    .cat-editor-btn.up, .cat-editor-btn.down { font-size: 16px; }
+
+    /* ===== CATEGORY EDIT MODAL ===== */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+      z-index: 400; display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity 0.25s ease; padding: 20px;
+    }
+    .modal-overlay.open { opacity: 1; pointer-events: all; }
+    .modal-box {
+      background: #16192e; border: 1px solid var(--glass-border);
+      border-radius: var(--radius-xl); padding: 28px 24px;
+      width: 100%; max-width: 380px;
+      transform: scale(0.92) translateY(20px);
+      transition: transform 0.35s cubic-bezier(0.16,1,0.3,1);
+    }
+    .modal-overlay.open .modal-box { transform: scale(1) translateY(0); }
+    .modal-title { font-size: 18px; font-weight: 700; margin-bottom: 24px; }
+    .emoji-picker {
+      display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; margin-bottom: 16px;
+    }
+    .emoji-opt {
+      font-size: 22px; padding: 6px; text-align: center;
+      background: var(--glass); border: 2px solid transparent;
+      border-radius: 10px; cursor: pointer; transition: var(--transition);
+    }
+    .emoji-opt.selected { border-color: var(--accent); background: rgba(108,99,255,0.15); }
+    .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+
+    /* ===== TOAST ===== */
+    .toast {
+      position: fixed;
+      top: calc(env(safe-area-inset-top, 0px) + 20px);
+      left: 50%; transform: translateX(-50%) translateY(-80px);
+      background: rgba(46,213,115,0.15); border: 1px solid rgba(46,213,115,0.4);
+      border-radius: 100px; padding: 12px 24px;
+      font-size: 14px; font-weight: 600; color: var(--success);
+      z-index: 600; transition: transform 0.4s cubic-bezier(0.16,1,0.3,1);
+      white-space: nowrap; backdrop-filter: blur(10px);
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* ===== EMPTY STATE ===== */
+    .empty-state {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 40px 20px; text-align: center; color: var(--text-muted);
+    }
+    .empty-state .es-icon { font-size: 48px; margin-bottom: 16px; }
+    .empty-state .es-title { font-size: 16px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px; }
+    .empty-state .es-text { font-size: 13px; line-height: 1.6; }
+
+    /* ===== RECORD MODE (shortcut fullscreen) ===== */
+    .record-mode-screen {
+      position: fixed; inset: 0; background: var(--bg-primary);
+      z-index: 300; display: none; flex-direction: column; overflow-y: auto;
+      padding: calc(env(safe-area-inset-top, 20px) + 20px) 20px calc(env(safe-area-inset-bottom, 0px) + 20px);
+      animation: fadeSlideIn 0.3s ease;
+    }
+    .record-mode-screen.open { display: flex; }
+    .record-mode-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+    .record-mode-header .back-btn {
+      background: var(--glass); border: 1px solid var(--glass-border);
+      border-radius: 50%; width: 40px; height: 40px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; font-size: 18px; color: var(--text-secondary); transition: var(--transition);
+    }
+    .record-mode-header h2 { font-size: 22px; font-weight: 700; }
+
+    /* ===== INFO BANNER ===== */
+    .info-banner {
+      margin: 0 20px 16px; padding: 12px 16px;
+      background: rgba(108,99,255,0.1); border: 1px solid rgba(108,99,255,0.25);
+      border-radius: var(--radius-sm);
+      display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--text-secondary);
+    }
+
+    /* ===== MISC ===== */
+    .divider { height: 1px; background: var(--border); margin: 8px 0; }
+    .mb-12 { margin-bottom: 12px; }
+
+    @media (min-width: 480px) {
+      .record-overlay { padding: 20px; }
+      .record-sheet { border-radius: var(--radius-xl); max-height: 90dvh; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="ambient"></div>
+  <div class="toast" id="toast" role="status"></div>
+
+  <div class="app">
+
+    <!-- ===== RECORD MODE SCREEN (Full Screen — from iOS Shortcut) ===== -->
+    <div class="record-mode-screen" id="recordModeScreen">
+      <div class="record-mode-header">
+        <button class="back-btn" onclick="closeRecordMode()" aria-label="キャンセル">✕</button>
+        <h2>🛡️ 決済前チェック</h2>
+      </div>
+      <div id="recordModeContent"></div>
+    </div>
+
+    <!-- ===== DASHBOARD ===== -->
+    <div class="screen active safe-top safe-bottom" id="dashboardScreen">
+      <div class="page-header">
+        <h1>PayGuard 🛡️</h1>
+        <p class="subtitle" id="dashSubtitle">今月の支出を管理しましょう</p>
+      </div>
+
+      <div class="warning-banner hidden" id="warningBanner">
+        <span class="icon">⚠️</span>
+        <div class="text" id="warningText"></div>
+      </div>
+
+      <div class="card-grid">
+        <div class="stat-card">
+          <div class="label">今月の総支出</div>
+          <div class="value" id="totalMonthly">¥0</div>
+          <div class="sub" id="totalCount">0件の記録</div>
+        </div>
+        <div class="stat-card danger">
+          <div class="label">衝動買い</div>
+          <div class="value" id="impulseAmount">¥0</div>
+          <div class="sub" id="impulseCount">0件</div>
+        </div>
+        <div class="stat-card success">
+          <div class="label">必要な支出</div>
+          <div class="value" id="necessaryAmount">¥0</div>
+          <div class="sub" id="necessaryCount">0件</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">今週</div>
+          <div class="value" id="weeklyAmount">¥0</div>
+          <div class="sub" id="weeklyCount">0件</div>
+        </div>
+      </div>
+
+      <div class="impulse-meter" id="impulseMeter">
+        <div class="meter-ring-wrapper">
+          <div class="meter-ring">
+            <svg width="80" height="80" viewBox="0 0 80 80">
+              <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="8"/>
+              <circle id="meterArc" cx="40" cy="40" r="34" fill="none"
+                stroke="#ff4757" stroke-width="8" stroke-linecap="round"
+                stroke-dasharray="213.6" stroke-dashoffset="213.6"
+                style="transition: stroke-dashoffset 1s cubic-bezier(0.4,0,0.2,1)"/>
+            </svg>
+          </div>
+          <div class="meter-ring-label">
+            <span id="meterPct">0%</span>
+            <span class="pct-label">衝動買い</span>
+          </div>
+        </div>
+        <div class="impulse-meter-text">
+          <h3 id="meterTitle">無駄遣いメーター</h3>
+          <p id="meterDesc">決済を記録すると<br>衝動買いの割合が分かります</p>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">最近の決済記録</div>
+        <div class="tx-list" id="recentTxList">
+          <div class="empty-state">
+            <div class="es-icon">💳</div>
+            <div class="es-title">まだ記録がありません</div>
+            <div class="es-text">＋ボタンまたはiOSショートカットから<br>決済を記録してみましょう</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== ANALYSIS ===== -->
+    <div class="screen safe-top safe-bottom" id="analysisScreen">
+      <div class="page-header">
+        <h1>分析</h1>
+        <p class="subtitle">支出パターンを把握しよう</p>
+      </div>
+
+      <div class="period-tabs">
+        <button class="period-tab active" id="tabWeek" onclick="setPeriod('week')">今週</button>
+        <button class="period-tab" id="tabMonth" onclick="setPeriod('month')">今月</button>
+        <button class="period-tab" id="tabAll" onclick="setPeriod('all')">全期間</button>
+      </div>
+
+      <div class="period-summary">
+        <div>
+          <div class="ps-label">合計支出</div>
+          <div class="ps-amount" id="periodTotal">¥0</div>
+          <div class="ps-count" id="periodCount">0件</div>
+        </div>
+        <div style="text-align:right">
+          <div class="ps-label">衝動買い</div>
+          <div style="font-family:var(--font-en);font-size:20px;font-weight:800;color:var(--danger)" id="periodImpulse">¥0</div>
+          <div class="ps-count" id="periodImpulseCount">0件</div>
+        </div>
+      </div>
+
+      <div class="chart-container">
+        <div class="chart-title">カテゴリ別</div>
+        <div class="chart-wrapper" style="height:220px;position:relative">
+          <canvas id="catChart"></canvas>
+          <div class="donut-center">
+            <div class="dc-value" id="donutValue">¥0</div>
+            <div class="dc-label">合計</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="chart-container">
+        <div class="chart-title">日別推移</div>
+        <div class="chart-wrapper"><canvas id="dailyChart"></canvas></div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">🔥 衝動買いランキング</div>
+        <div class="ranking-list" id="impulseRanking">
+          <div class="empty-state">
+            <div class="es-icon">🏆</div>
+            <div class="es-title">まだデータなし</div>
+            <div class="es-text">衝動買いを記録するとランキングが表示されます</div>
+          </div>
+        </div>
+      </div>
+      <div style="height:16px"></div>
+    </div>
+
+    <!-- ===== HISTORY ===== -->
+    <div class="screen safe-top safe-bottom" id="historyScreen">
+      <div class="page-header">
+        <h1>履歴</h1>
+        <p class="subtitle">すべての決済記録</p>
+      </div>
+      <div class="section">
+        <div class="tx-list" id="allTxList">
+          <div class="empty-state">
+            <div class="es-icon">📋</div>
+            <div class="es-title">まだ記録がありません</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SETTINGS ===== -->
+    <div class="screen safe-top safe-bottom" id="settingsScreen">
+      <div class="page-header">
+        <h1>設定</h1>
+        <p class="subtitle">PayGuardをカスタマイズ</p>
+      </div>
+
+      <div class="settings-section">
+
+        <!-- Data Persistence Info -->
+        <div class="info-banner">
+          <span style="font-size:18px">💾</span>
+          <span>データはこのデバイスに<strong style="color:var(--accent-light)">永続保存</strong>されます。ブラウザのキャッシュ削除でリセットされるため、定期的なCSV出力をお勧めします。</span>
+        </div>
+
+        <div class="section-title mb-12">通知</div>
+
+        <div class="settings-item">
+          <div class="settings-icon">🔔</div>
+          <div class="settings-info">
+            <div class="si-title">プッシュ通知</div>
+            <div class="si-desc">毎日夜のサマリーを受け取る</div>
+          </div>
+          <button class="settings-action" id="notifBtn" onclick="toggleNotifications()">有効にする</button>
+        </div>
+
+        <div class="settings-item">
+          <div class="settings-icon">⏰</div>
+          <div class="settings-info">
+            <div class="si-title">通知時刻</div>
+            <div class="si-desc">毎日サマリーを届ける時刻</div>
+          </div>
+          <input type="time" id="notifTime" value="21:00"
+            style="background:var(--glass);border:1px solid var(--glass-border);border-radius:8px;color:var(--text-primary);padding:8px 12px;font-size:13px;cursor:pointer;outline:none"
+            onchange="saveSettings()" />
+        </div>
+
+        <div class="settings-item">
+          <div class="settings-icon">🚨</div>
+          <div class="settings-info">
+            <div class="si-title">衝動買い警告</div>
+            <div class="si-desc">衝動買いカテゴリ選択時に警告表示</div>
+          </div>
+          <div class="toggle on" id="impulseWarningToggle" onclick="toggleImpulseWarning()"></div>
+        </div>
+
+        <div class="divider" style="margin:20px 0 14px"></div>
+        <div class="section-title mb-12">カテゴリ管理</div>
+
+        <div id="catEditorList" class="cat-editor-list" style="margin-bottom:10px"></div>
+
+        <button class="settings-item" style="width:100%;cursor:pointer;border:2px dashed var(--glass-border);background:transparent;justify-content:center;gap:8px;color:var(--text-secondary);font-size:14px;font-family:var(--font-jp)" onclick="openCatModal()">
+          <span style="font-size:20px">＋</span> カテゴリを追加
+        </button>
+
+        <div class="divider" style="margin:20px 0 14px"></div>
+        <div class="section-title mb-12">ショートカット連携</div>
+
+        <div class="settings-item" style="flex-direction:column;align-items:flex-start;gap:10px">
+          <div style="display:flex;gap:14px;align-items:center;width:100%">
+            <div class="settings-icon">⚡️</div>
+            <div class="settings-info">
+              <div class="si-title">iOSショートカット URL</div>
+              <div class="si-desc">PayPay・Apple Pay用のショートカットURL</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;width:100%">
+            <button class="settings-action" style="flex:1;text-align:center" onclick="copyShortcutUrl('paypay')">💴 PayPay用コピー</button>
+            <button class="settings-action" style="flex:1;text-align:center" onclick="copyShortcutUrl('applepay')">🍎 Apple Pay用コピー</button>
+          </div>
+          <p style="font-size:11px;color:var(--text-muted);padding:0 2px">Suica・現金は「＋」ボタンから手動で記録します</p>
+        </div>
+
+        <div class="divider" style="margin:20px 0 14px"></div>
+        <div class="section-title mb-12">データ</div>
+
+        <div class="settings-item">
+          <div class="settings-icon">📤</div>
+          <div class="settings-info">
+            <div class="si-title">CSVエクスポート</div>
+            <div class="si-desc">全記録をCSVファイルでダウンロード</div>
+          </div>
+          <button class="settings-action" onclick="exportCSV()">出力</button>
+        </div>
+
+        <div class="settings-item">
+          <div class="settings-icon">🗑️</div>
+          <div class="settings-info">
+            <div class="si-title">全データを削除</div>
+            <div class="si-desc">すべての記録を消去します</div>
+          </div>
+          <button class="settings-action" style="border-color:rgba(255,71,87,0.4);color:var(--danger)" onclick="clearAllData()">削除</button>
+        </div>
+
+        <div style="height:16px"></div>
+        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v1.1 · データはこのデバイスのみに保存</p>
+        <div style="height:24px"></div>
+      </div>
+    </div>
+
+    <!-- ===== BOTTOM NAV ===== -->
+    <nav class="bottom-nav" role="navigation" aria-label="メインナビゲーション">
+      <button class="nav-item active" id="nav-dashboard" onclick="showScreen('dashboard')" aria-label="ホーム">
+        <span class="icon">🏠</span><span>ホーム</span>
+      </button>
+      <button class="nav-item" id="nav-analysis" onclick="showScreen('analysis')" aria-label="分析">
+        <span class="icon">📊</span><span>分析</span>
+      </button>
+      <div style="width:72px;flex-shrink:0"></div>
+      <button class="nav-item" id="nav-history" onclick="showScreen('history')" aria-label="履歴">
+        <span class="icon">📋</span><span>履歴</span>
+      </button>
+      <button class="nav-item" id="nav-settings" onclick="showScreen('settings')" aria-label="設定">
+        <span class="icon">⚙️</span><span>設定</span>
+      </button>
+    </nav>
+
+    <!-- FAB -->
+    <button class="fab" id="fabBtn" onclick="openRecordSheet()" aria-label="決済を記録する">＋</button>
+  </div>
+
+  <!-- ===== RECORD SHEET ===== -->
+  <div class="record-overlay" id="recordOverlay" onclick="handleOverlayClick(event)">
+    <div class="record-sheet" role="dialog" aria-modal="true" aria-label="決済を記録">
+      <div class="sheet-handle"></div>
+      <div class="sheet-title">💳 決済を記録</div>
+
+      <!-- Amount -->
+      <div class="amount-display">
+        <div class="label">金額</div>
+        <div class="number placeholder" id="amountDisplay">¥ ー</div>
+      </div>
+      <div class="keypad" id="keypad">
+        <button class="keypad-btn" onclick="keypadInput('1')">1</button>
+        <button class="keypad-btn" onclick="keypadInput('2')">2</button>
+        <button class="keypad-btn" onclick="keypadInput('3')">3</button>
+        <button class="keypad-btn" onclick="keypadInput('4')">4</button>
+        <button class="keypad-btn" onclick="keypadInput('5')">5</button>
+        <button class="keypad-btn" onclick="keypadInput('6')">6</button>
+        <button class="keypad-btn" onclick="keypadInput('7')">7</button>
+        <button class="keypad-btn" onclick="keypadInput('8')">8</button>
+        <button class="keypad-btn" onclick="keypadInput('9')">9</button>
+        <button class="keypad-btn" onclick="keypadInput('000')">000</button>
+        <button class="keypad-btn" onclick="keypadInput('0')">0</button>
+        <button class="keypad-btn del" onclick="keypadDelete()" aria-label="削除">⌫</button>
+      </div>
+
+      <!-- Payment Method -->
+      <div class="form-group">
+        <label class="form-label">支払い方法</label>
+        <div class="pay-method-grid" id="payMethodGrid">
+          <!-- JS で生成 -->
+        </div>
+      </div>
+
+      <!-- Category -->
+      <div class="form-group">
+        <label class="form-label">カテゴリ</label>
+        <div class="category-grid" id="categoryGrid">
+          <!-- JS で生成 -->
+        </div>
+      </div>
+
+      <!-- Impulse Warning -->
+      <div class="impulse-warning" id="impulseWarning">
+        <span class="wi-icon">🚨</span>
+        <div class="wi-text">
+          <strong>⚠️ 衝動買い警告</strong>
+          本当に必要ですか？24時間待ってみましょう。<br>
+          <em>「本当に必要なものなら、明日でも欲しいはず」</em>
+        </div>
+      </div>
+
+      <!-- Reason -->
+      <div class="form-group">
+        <label class="form-label" for="reasonInput">なぜこの決済をするか？</label>
+        <textarea class="form-input" id="reasonInput" placeholder="例：夕食の食材をまとめ買い" rows="3"></textarea>
+      </div>
+
+      <div class="submit-row">
+        <button class="btn-secondary" onclick="closeRecordSheet()">キャンセル</button>
+        <button class="btn-primary" id="submitBtn" onclick="submitRecord()">記録する ✓</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== CATEGORY EDIT MODAL ===== -->
+  <div class="modal-overlay" id="catModal" onclick="handleCatModalClick(event)">
+    <div class="modal-box">
+      <div class="modal-title" id="catModalTitle">カテゴリを追加</div>
+
+      <div class="form-group">
+        <label class="form-label">アイコンを選ぶ</label>
+        <div class="emoji-picker" id="emojiPicker">
+          <!-- JS で生成 -->
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="catNameInput">カテゴリ名</label>
+        <input type="text" class="form-input" id="catNameInput" placeholder="例：医療費" maxlength="10" />
+      </div>
+
+      <div class="settings-item" style="margin-bottom:0;padding:12px 14px">
+        <div class="settings-info">
+          <div class="si-title" style="font-size:14px">衝動買いカテゴリとしてマーク</div>
+          <div class="si-desc">警告バナーを表示します</div>
+        </div>
+        <div class="toggle" id="catImpulseToggle" onclick="this.classList.toggle('on')"></div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" style="flex:1" onclick="closeCatModal()">キャンセル</button>
+        <button class="btn-primary" style="flex:1.5" onclick="saveCat()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  // ===== CONSTANTS =====
+  const STORAGE_KEY    = 'payguard_records';
+  const SETTINGS_KEY   = 'payguard_settings';
+  const CATEGORIES_KEY = 'payguard_categories';
+
+  // ===== 支払い方法（固定） =====
+  const PAYMENT_METHODS = {
+    paypay:   { label: 'PayPay',        emoji: '💴', url: 'paypay://',  autoLaunch: true  },
+    applepay: { label: 'Apple Pay\n(iD)', emoji: '🍎', url: 'shoebox://', autoLaunch: true  },
+    suica:    { label: 'Suica',          emoji: '🚃', url: '',           autoLaunch: false },
+    cash:     { label: '現金',           emoji: '💵', url: '',           autoLaunch: false },
+  };
+
+  // ===== DEFAULT CATEGORIES =====
+  const DEFAULT_CATEGORIES = [
+    { id: 'food',          emoji: '🍔', label: '食費',       isImpulse: false, color: '#ffa502' },
+    { id: 'impulse',       emoji: '🛍️', label: '衝動買い',   isImpulse: true,  color: '#ff4757' },
+    { id: 'necessary',     emoji: '📦', label: '必要な支出', isImpulse: false, color: '#2ed573' },
+    { id: 'entertainment', emoji: '🎮', label: '娯楽',       isImpulse: false, color: '#6c63ff' },
+    { id: 'transport',     emoji: '🚗', label: '交通費',     isImpulse: false, color: '#1ed7ff' },
+    { id: 'other',         emoji: '💊', label: 'その他',     isImpulse: false, color: '#747d8c' },
+  ];
+
+  const EMOJI_OPTIONS = ['🍔','🍕','🍜','☕','🍱','🛍️','👕','👟','🎮','🎬','📚','💊','💄','🏋️','🚗','🚃','✈️','🏠','💡','📱','💻','🎁','🌸','⚽','🐶','🎵','🍺','🌮','🔧','💰','🏥','🎓','🌿','🌊'];
+
+  // ===== STATE =====
+  let records    = [];
+  let categories = [];
+  let settings   = { notificationsEnabled: false, notifTime: '21:00', impulseWarningEnabled: true };
+  let currentAmount   = '';
+  let selectedCatId   = null;
+  let selectedPayMethod = 'paypay';
+  let catChart    = null;
+  let dailyChart  = null;
+  let currentPeriod = 'month';
+  // cat edit modal state
+  let editingCatId   = null;
+  let selectedEmoji  = '🛍️';
+
+  // ===== INIT =====
+  function init() {
+    loadData();
+    loadCategories();
+    loadSettings();
+    registerSW();
+    checkURLParams();
+    renderPayMethodGrid('payMethodGrid', 'paypay');
+    renderCategoryGrid('categoryGrid');
+    updateDashboard();
+    renderCatEditorList();
+    setupNotifTimer();
+  }
+
+  // ===== DATA =====
+  function loadData() {
+    try { records = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { records = []; }
+  }
+  function saveData() { localStorage.setItem(STORAGE_KEY, JSON.stringify(records)); }
+
+  function loadCategories() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(CATEGORIES_KEY) || 'null');
+      categories = saved || JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
+    } catch { categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES)); }
+  }
+  function saveCategories() { localStorage.setItem(CATEGORIES_KEY, JSON.stringify(categories)); }
+
+  function loadSettings() {
+    try {
+      const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+      settings = { ...settings, ...s };
+    } catch {}
+    applySettings();
+  }
+  function saveSettings() {
+    settings.notifTime = document.getElementById('notifTime').value;
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    setupNotifTimer();
+  }
+  function applySettings() {
+    document.getElementById('notifTime').value = settings.notifTime;
+    document.getElementById('impulseWarningToggle').className = 'toggle' + (settings.impulseWarningEnabled ? ' on' : '');
+    const btn = document.getElementById('notifBtn');
+    if (settings.notificationsEnabled) { btn.textContent = '有効中 ✓'; btn.classList.add('enabled'); }
+  }
+
+  // ===== SERVICE WORKER =====
+  function registerSW() {
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  }
+
+  // ===== URL PARAMS (iOS Shortcut integration) =====
+  function checkURLParams() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('record') === '1') {
+      const app = params.get('app') || 'paypay';
+      openRecordModeScreen(app);
+    }
+  }
+
+  // ===== NAVIGATION =====
+  function showScreen(name) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById(name + 'Screen').classList.add('active');
+    document.getElementById('nav-' + name).classList.add('active');
+    if (name === 'analysis') renderAnalysis();
+    if (name === 'history')  renderHistory();
+    if (name === 'settings') renderCatEditorList();
+  }
+
+  // ===== RENDER PAYMENT METHOD GRID =====
+  function renderPayMethodGrid(containerId, defaultMethod) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.innerHTML = Object.entries(PAYMENT_METHODS).map(([key, pm]) => `
+      <button class="pay-method-btn ${key === defaultMethod ? 'selected' : ''}"
+        data-pay="${key}" onclick="handlePayMethodClick(this)">
+        <span class="pm-icon">${pm.emoji}</span>
+        <span class="pm-name">${pm.label}</span>
+        ${pm.autoLaunch ? '<span class="pay-method-badge auto">自動起動</span>' : '<span class="pay-method-badge">手動</span>'}
+      </button>
+    `).join('');
+    selectedPayMethod = defaultMethod;
+  }
+
+  function handlePayMethodClick(btn) {
+    const grid = btn.closest('.pay-method-grid');
+    if (!grid) return;
+    grid.querySelectorAll('.pay-method-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    selectedPayMethod = btn.dataset.pay;
+  }
+
+  // ===== RENDER CATEGORY GRID =====
+  function renderCategoryGrid(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.innerHTML = categories.map(cat => `
+      <button class="cat-btn" data-cat-id="${cat.id}" data-is-impulse="${cat.isImpulse}"
+        onclick="handleCatClick(this)">
+        <span class="cat-icon">${cat.emoji}</span>
+        <span class="cat-name">${cat.label}</span>
+      </button>
+    `).join('');
+    selectedCatId = null;
+  }
+
+  function handleCatClick(btn) {
+    const grid = btn.closest('.category-grid');
+    if (!grid) return;
+    grid.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    selectedCatId = btn.dataset.catId;
+    const isImpulse = btn.dataset.isImpulse === 'true';
+    // Record sheet uses 'impulseWarning'; record mode screen uses 'recordModeImpulseWarning'
+    const inModeScreen = !!btn.closest('#recordModeContent');
+    const warningId = inModeScreen ? 'recordModeImpulseWarning' : 'impulseWarning';
+    const warning = document.getElementById(warningId);
+    if (warning) warning.className = 'impulse-warning' + (isImpulse && settings.impulseWarningEnabled ? ' show' : '');
+  }
+
+
+
+  // ===== RECORD SHEET =====
+  function openRecordSheet() {
+    resetForm();
+    document.getElementById('recordOverlay').classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeRecordSheet() {
+    document.getElementById('recordOverlay').classList.remove('open');
+    document.body.style.overflow = '';
+  }
+  function handleOverlayClick(e) {
+    if (e.target === document.getElementById('recordOverlay')) closeRecordSheet();
+  }
+  function resetForm() {
+    currentAmount = ''; selectedCatId = null; selectedPayMethod = 'paypay';
+    updateAmountDisplay('amountDisplay');
+    renderPayMethodGrid('payMethodGrid', 'paypay');
+    renderCategoryGrid('categoryGrid');
+    document.getElementById('reasonInput').value = '';
+    document.getElementById('impulseWarning').className = 'impulse-warning';
+  }
+
+  // ===== RECORD MODE SCREEN (from shortcut) =====
+  function openRecordModeScreen(appKey) {
+    const pm = PAYMENT_METHODS[appKey] || PAYMENT_METHODS.paypay;
+    const content = document.getElementById('recordModeContent');
+    content.innerHTML = `
+      <p style="color:var(--text-secondary);font-size:14px;margin-bottom:16px;line-height:1.6">
+        <strong style="color:var(--text-primary)">${pm.emoji} ${pm.label.replace('\n','')}</strong> を開く前に、<br>なぜこの決済を行うかを記録してください。
+      </p>
+      <div class="amount-display" style="margin-bottom:14px">
+        <div class="label">金額</div>
+        <div class="number placeholder" id="recordModeAmountDisplay">¥ ー</div>
+      </div>
+      <div class="keypad" style="margin-bottom:18px">
+        ${['1','2','3','4','5','6','7','8','9','000','0','⌫'].map(k =>
+          `<button class="keypad-btn${k==='⌫'?' del':''}" onclick="${k==='⌫'?'keypadDelete("recordModeAmountDisplay")':'keypadInput("'+k+'","recordModeAmountDisplay")'}">${k}</button>`
+        ).join('')}
+      </div>
+      <div class="form-group">
+        <label class="form-label">カテゴリ</label>
+        <div class="category-grid" id="recordModeCatGrid"></div>
+      </div>
+      <div class="impulse-warning" id="recordModeImpulseWarning">
+        <span class="wi-icon">🚨</span>
+        <div class="wi-text">
+          <strong>⚠️ 衝動買い警告</strong>
+          本当に必要ですか？24時間待ってみましょう。<br>
+          <em>「本当に必要なものなら、明日でも欲しいはず」</em>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="recordModeReason">なぜこの決済をするか？</label>
+        <textarea class="form-input" id="recordModeReason" placeholder="例：夕食の食材をまとめ買い" rows="3"></textarea>
+      </div>
+      <div class="submit-row">
+        <button class="btn-secondary" onclick="closeRecordMode()">キャンセル</button>
+        <button class="btn-primary" onclick="submitRecordMode('${appKey}')">記録して決済へ →</button>
+      </div>
+    `;
+    currentAmount = ''; selectedCatId = null; selectedPayMethod = appKey;
+    renderCategoryGrid('recordModeCatGrid');
+    document.getElementById('recordModeScreen').classList.add('open');
+  }
+
+  function closeRecordMode() {
+    document.getElementById('recordModeScreen').classList.remove('open');
+    window.history.replaceState({}, '', window.location.pathname);
+  }
+
+  function submitRecordMode(appKey) {
+    const reason = (document.getElementById('recordModeReason')?.value || '').trim();
+    if (!currentAmount || currentAmount === '0') { showToast('⚠️ 金額を入力してください'); return; }
+    if (!selectedCatId) { showToast('⚠️ カテゴリを選択してください'); return; }
+    if (!reason) { showToast('⚠️ 理由を入力してください'); return; }
+    saveRecord(parseInt(currentAmount), selectedCatId, reason, appKey);
+    closeRecordMode();
+    updateDashboard();
+    showToast('✅ 記録しました！');
+    const appUrl = PAYMENT_METHODS[appKey]?.url;
+    if (appUrl) setTimeout(() => { window.location.href = appUrl; }, 400);
+  }
+
+  // ===== KEYPAD =====
+  function keypadInput(key, displayId = 'amountDisplay') {
+    if (currentAmount.length >= 8) return;
+    if ((key === '000' || key === '0') && currentAmount === '') return;
+    currentAmount += key;
+    if (parseInt(currentAmount) > 99999999) currentAmount = currentAmount.slice(0,-key.length);
+    updateAmountDisplay(displayId);
+  }
+  function keypadDelete(displayId = 'amountDisplay') {
+    currentAmount = currentAmount.slice(0, -1);
+    updateAmountDisplay(displayId);
+  }
+  function updateAmountDisplay(displayId) {
+    const el = document.getElementById(displayId);
+    if (!el) return;
+    if (!currentAmount) { el.textContent = '¥ ー'; el.classList.add('placeholder'); }
+    else { el.textContent = '¥ ' + parseInt(currentAmount).toLocaleString('ja-JP'); el.classList.remove('placeholder'); }
+  }
+
+  // ===== SUBMIT =====
+  function submitRecord() {
+    const reason = document.getElementById('reasonInput').value.trim();
+    if (!currentAmount || currentAmount === '0') { showToast('⚠️ 金額を入力してください'); return; }
+    if (!selectedCatId) { showToast('⚠️ カテゴリを選択してください'); return; }
+    if (!reason) { showToast('⚠️ 理由を入力してください'); return; }
+    saveRecord(parseInt(currentAmount), selectedCatId, reason, selectedPayMethod);
+    closeRecordSheet();
+    updateDashboard();
+    showToast('✅ 記録しました！');
+    // Suica/Cash: no auto-launch
+    const pm = PAYMENT_METHODS[selectedPayMethod];
+    if (pm?.url && pm.autoLaunch) setTimeout(() => { window.location.href = pm.url; }, 500);
+  }
+
+  function saveRecord(amount, catId, reason, payMethod) {
+    records.unshift({ id: Date.now(), amount, catId, reason, payMethod, timestamp: new Date().toISOString() });
+    saveData();
+    checkImpulseWarnings();
+  }
+
+  // ===== IMPULSE WARNING =====
+  function checkImpulseWarnings() {
+    const today = new Date().toDateString();
+    const todayRecs = records.filter(r => new Date(r.timestamp).toDateString() === today);
+    const impulseCats = new Set(categories.filter(c => c.isImpulse).map(c => c.id));
+    const impulseToday = todayRecs.filter(r => impulseCats.has(r.catId));
+    const banner = document.getElementById('warningBanner');
+    if (impulseToday.length >= 3) {
+      banner.classList.remove('hidden');
+      document.getElementById('warningText').innerHTML = `今日だけで<strong>${impulseToday.length}回の衝動買い</strong>を記録しています。本当に必要ですか？`;
+    } else {
+      banner.classList.add('hidden');
+    }
+  }
+
+  // ===== DASHBOARD =====
+  function updateDashboard() {
+    checkImpulseWarnings();
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay());
+    const impulseCatIds = new Set(categories.filter(c => c.isImpulse).map(c => c.id));
+    const necessaryCatIds = new Set(categories.filter(c => c.id === 'necessary').map(c => c.id));
+
+    const monthRecs    = records.filter(r => new Date(r.timestamp) >= monthStart);
+    const weekRecs     = records.filter(r => new Date(r.timestamp) >= weekStart);
+    const impulseRecs  = monthRecs.filter(r => impulseCatIds.has(r.catId));
+    const necessaryRecs= monthRecs.filter(r => necessaryCatIds.has(r.catId));
+
+    const totalMonth   = monthRecs.reduce((s,r)=>s+r.amount,0);
+    const totalImpulse = impulseRecs.reduce((s,r)=>s+r.amount,0);
+    const totalNec     = necessaryRecs.reduce((s,r)=>s+r.amount,0);
+    const totalWeek    = weekRecs.reduce((s,r)=>s+r.amount,0);
+
+    document.getElementById('totalMonthly').textContent   = '¥'+totalMonth.toLocaleString('ja-JP');
+    document.getElementById('totalCount').textContent     = monthRecs.length+'件の記録';
+    document.getElementById('impulseAmount').textContent  = '¥'+totalImpulse.toLocaleString('ja-JP');
+    document.getElementById('impulseCount').textContent   = impulseRecs.length+'件';
+    document.getElementById('necessaryAmount').textContent= '¥'+totalNec.toLocaleString('ja-JP');
+    document.getElementById('necessaryCount').textContent = necessaryRecs.length+'件';
+    document.getElementById('weeklyAmount').textContent   = '¥'+totalWeek.toLocaleString('ja-JP');
+    document.getElementById('weeklyCount').textContent    = weekRecs.length+'件';
+
+    const today = records.filter(r => new Date(r.timestamp).toDateString() === now.toDateString());
+    if (today.length > 0) {
+      const t = today.reduce((s,r)=>s+r.amount,0);
+      document.getElementById('dashSubtitle').textContent = `今日: ${today.length}件 ¥${t.toLocaleString('ja-JP')}`;
+    } else {
+      document.getElementById('dashSubtitle').textContent = '今月の支出を管理しましょう';
+    }
+
+    const pct = totalMonth > 0 ? Math.round((totalImpulse/totalMonth)*100) : 0;
+    document.getElementById('meterArc').style.strokeDashoffset = 213.6 - (213.6*pct/100);
+    document.getElementById('meterPct').textContent = pct+'%';
+    if (pct >= 50) {
+      document.getElementById('meterTitle').textContent = '⚠️ 衝動買いが多め！';
+      document.getElementById('meterDesc').textContent = `今月の支出の${pct}%が衝動買いです。意識して減らしましょう。`;
+    } else if (pct >= 20) {
+      document.getElementById('meterTitle').textContent = '😐 少し多めです';
+      document.getElementById('meterDesc').textContent = `今月の衝動買いは${pct}%。もう少し減らせるかも。`;
+    } else {
+      document.getElementById('meterTitle').textContent = '✅ 良いペースです！';
+      document.getElementById('meterDesc').textContent = `今月の衝動買いは${pct}%。引き続き記録を続けましょう。`;
+    }
+
+    renderTxList('recentTxList', records.slice(0, 8));
+  }
+
+  function getCatById(id) { return categories.find(c => c.id === id) || { emoji: '❓', label: id, isImpulse: false, color: '#747d8c' }; }
+  function getPayById(id) { return PAYMENT_METHODS[id] || { emoji: '💳', label: id }; }
+
+  function renderTxList(containerId, items) {
+    const c = document.getElementById(containerId);
+    if (items.length === 0) {
+      c.innerHTML = `<div class="empty-state"><div class="es-icon">💳</div><div class="es-title">まだ記録がありません</div><div class="es-text">＋ボタンから決済を記録してみましょう</div></div>`;
+      return;
+    }
+    c.innerHTML = items.map(r => {
+      const cat = getCatById(r.catId);
+      const pay = getPayById(r.payMethod);
+      const d = new Date(r.timestamp);
+      const ds = `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+      const amtClass = cat.isImpulse ? 'impulse' : (r.catId === 'necessary' ? 'necessary' : '');
+      const tagStyle = `background:${hexAlpha(cat.color,0.15)};color:${cat.color}`;
+      return `
+        <div class="tx-item">
+          <div class="tx-emoji">${cat.emoji}</div>
+          <div class="tx-info">
+            <div class="tx-reason">${escapeHtml(r.reason)}</div>
+            <div class="tx-meta">${ds} · ${pay.emoji} ${pay.label.replace('\n','')}</div>
+            <span class="tx-tag" style="${tagStyle}">${cat.label}</span>
+          </div>
+          <div class="tx-amount ${amtClass}">¥${r.amount.toLocaleString('ja-JP')}</div>
+        </div>`;
+    }).join('');
+  }
+
+  // ===== ANALYSIS =====
+  function setPeriod(p) {
+    currentPeriod = p;
+    document.querySelectorAll('.period-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('tab'+p.charAt(0).toUpperCase()+p.slice(1)).classList.add('active');
+    renderAnalysis();
+  }
+  function getPeriodRecords() {
+    const now = new Date();
+    if (currentPeriod === 'week') {
+      const s = new Date(now); s.setDate(now.getDate()-7);
+      return records.filter(r => new Date(r.timestamp) >= s);
+    } else if (currentPeriod === 'month') {
+      const s = new Date(now.getFullYear(), now.getMonth(), 1);
+      return records.filter(r => new Date(r.timestamp) >= s);
+    }
+    return records;
+  }
+  function renderAnalysis() {
+    const recs = getPeriodRecords();
+    const impulseCatIds = new Set(categories.filter(c => c.isImpulse).map(c => c.id));
+    const impulse = recs.filter(r => impulseCatIds.has(r.catId));
+    const total  = recs.reduce((s,r)=>s+r.amount,0);
+    const tImp   = impulse.reduce((s,r)=>s+r.amount,0);
+    document.getElementById('periodTotal').textContent = '¥'+total.toLocaleString('ja-JP');
+    document.getElementById('periodCount').textContent = recs.length+'件';
+    document.getElementById('periodImpulse').textContent = '¥'+tImp.toLocaleString('ja-JP');
+    document.getElementById('periodImpulseCount').textContent = impulse.length+'件';
+    document.getElementById('donutValue').textContent = '¥'+total.toLocaleString('ja-JP');
+    renderCatChart(recs);
+    renderDailyChart(recs);
+    renderImpulseRanking(recs);
+  }
+
+  function renderCatChart(recs) {
+    const ctx = document.getElementById('catChart').getContext('2d');
+    const totals = {};
+    recs.forEach(r => { totals[r.catId] = (totals[r.catId]||0)+r.amount; });
+    const labels=[],data=[],colors=[];
+    Object.entries(totals).sort((a,b)=>b[1]-a[1]).forEach(([id,v]) => {
+      const cat = getCatById(id);
+      labels.push(cat.label); data.push(v); colors.push(cat.color||'#747d8c');
+    });
+    if (catChart) catChart.destroy();
+    catChart = new Chart(ctx, {
+      type: 'doughnut',
+      data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 0, hoverOffset: 8 }] },
+      options: {
+        cutout: '65%', responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position:'right', labels:{ color:'rgba(240,240,255,0.7)', font:{size:11,family:"'Noto Sans JP'"}, padding:10, boxWidth:12, boxHeight:12 } },
+          tooltip: { callbacks: { label: ctx=>' ¥'+ctx.raw.toLocaleString('ja-JP') } }
+        }
+      }
+    });
+  }
+
+  function renderDailyChart(recs) {
+    const ctx = document.getElementById('dailyChart').getContext('2d');
+    const days = currentPeriod==='week'?7:currentPeriod==='month'?30:Math.min(30,calcDayRange(recs));
+    const dayMap = {};
+    for (let i=days-1;i>=0;i--) { const d=new Date();d.setDate(d.getDate()-i);dayMap[d.toDateString()]=0; }
+    recs.forEach(r => { const k=new Date(r.timestamp).toDateString();if(k in dayMap)dayMap[k]+=r.amount; });
+    const labels = Object.keys(dayMap).map(k=>{const d=new Date(k);return`${d.getMonth()+1}/${d.getDate()}`;});
+    const data = Object.values(dayMap);
+    if (dailyChart) dailyChart.destroy();
+    dailyChart = new Chart(ctx, {
+      type: 'bar',
+      data: { labels, datasets: [{ data, backgroundColor: data.map(v=>v>0?'rgba(108,99,255,0.7)':'rgba(108,99,255,0.1)'), borderRadius:6, borderSkipped:false }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend:{display:false}, tooltip:{callbacks:{label:ctx=>' ¥'+ctx.raw.toLocaleString('ja-JP')}} },
+        scales: {
+          x: { ticks:{color:'rgba(240,240,255,0.4)',font:{size:10},maxTicksLimit:8}, grid:{display:false}, border:{display:false} },
+          y: { ticks:{color:'rgba(240,240,255,0.4)',font:{size:10},callback:v=>'¥'+v.toLocaleString()}, grid:{color:'rgba(255,255,255,0.05)'}, border:{display:false} }
+        }
+      }
+    });
+  }
+
+  function calcDayRange(recs) {
+    if (!recs.length) return 7;
+    const min = Math.min(...recs.map(r=>new Date(r.timestamp)));
+    return Math.ceil((Date.now()-min)/86400000)+1;
+  }
+
+  function renderImpulseRanking(recs) {
+    const c = document.getElementById('impulseRanking');
+    const impulseCatIds = new Set(categories.filter(cat => cat.isImpulse).map(cat => cat.id));
+    const impulseRecs = recs.filter(r => impulseCatIds.has(r.catId));
+    if (!impulseRecs.length) {
+      c.innerHTML = `<div class="empty-state"><div class="es-icon">🏆</div><div class="es-title">衝動買いの記録なし</div><div class="es-text">素晴らしい！引き続き頑張りましょう</div></div>`;
+      return;
+    }
+    const map = {};
+    impulseRecs.forEach(r => {
+      const k = r.reason.slice(0,20);
+      if (!map[k]) map[k]={reason:r.reason,count:0,amount:0};
+      map[k].count++; map[k].amount+=r.amount;
+    });
+    const sorted = Object.values(map).sort((a,b)=>b.amount-a.amount).slice(0,5);
+    c.innerHTML = sorted.map((item,i) => {
+      const nc = i===0?'gold':i===1?'silver':i===2?'bronze':'';
+      return `<div class="rank-item"><div class="rank-num ${nc}">${i+1}</div><div class="rank-info"><div class="reason">${escapeHtml(item.reason.slice(0,30))}${item.reason.length>30?'...':''}</div><div class="times">${item.count}回</div></div><div class="rank-amount">¥${item.amount.toLocaleString('ja-JP')}</div></div>`;
+    }).join('');
+  }
+
+  // ===== HISTORY =====
+  function renderHistory() { renderTxList('allTxList', records); }
+
+  // ===== CATEGORY EDITOR =====
+  function renderCatEditorList() {
+    const c = document.getElementById('catEditorList');
+    if (!c) return;
+    if (!categories.length) { c.innerHTML = '<p style="color:var(--text-muted);font-size:13px;text-align:center;padding:12px">カテゴリがありません</p>'; return; }
+    c.innerHTML = categories.map((cat, idx) => `
+      <div class="cat-editor-item" id="catEditorItem_${cat.id}">
+        <div class="cat-editor-emoji">${cat.emoji}</div>
+        <div class="cat-editor-name">${escapeHtml(cat.label)}</div>
+        ${cat.isImpulse ? '<span class="cat-editor-impulse-badge">衝動買い</span>' : ''}
+        <div class="cat-editor-actions">
+          ${idx > 0 ? `<button class="cat-editor-btn up" onclick="moveCat('${cat.id}',-1)" title="上へ">↑</button>` : ''}
+          ${idx < categories.length-1 ? `<button class="cat-editor-btn down" onclick="moveCat('${cat.id}',1)" title="下へ">↓</button>` : ''}
+          <button class="cat-editor-btn" onclick="openCatModal('${cat.id}')" title="編集">✏️</button>
+          <button class="cat-editor-btn danger" onclick="deleteCat('${cat.id}')" title="削除">🗑</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function moveCat(id, dir) {
+    const idx = categories.findIndex(c => c.id === id);
+    if (idx < 0) return;
+    const ni = idx+dir;
+    if (ni<0||ni>=categories.length) return;
+    [categories[idx],categories[ni]] = [categories[ni],categories[idx]];
+    saveCategories();
+    renderCatEditorList();
+    renderCategoryGrid('categoryGrid');
+    renderCategoryGrid('recordModeCatGrid');
+    showToast('✅ 並び順を変更しました');
+  }
+
+  function deleteCat(id) {
+    if (categories.length <= 1) { showToast('⚠️ カテゴリは最低1つ必要です'); return; }
+    if (!confirm(`このカテゴリを削除しますか？\n過去の記録には影響しません。`)) return;
+    categories = categories.filter(c => c.id !== id);
+    saveCategories();
+    renderCatEditorList();
+    renderCategoryGrid('categoryGrid');
+    showToast('🗑️ カテゴリを削除しました');
+  }
+
+  // ===== CATEGORY EDIT MODAL =====
+  function openCatModal(id = null) {
+    editingCatId = id;
+    const existing = id ? categories.find(c => c.id === id) : null;
+    selectedEmoji = existing?.emoji || '🛍️';
+    document.getElementById('catModalTitle').textContent = id ? 'カテゴリを編集' : 'カテゴリを追加';
+    document.getElementById('catNameInput').value = existing?.label || '';
+    document.getElementById('catImpulseToggle').className = 'toggle' + ((existing?.isImpulse) ? ' on' : '');
+    renderEmojiPicker();
+    document.getElementById('catModal').classList.add('open');
+  }
+  function closeCatModal() { document.getElementById('catModal').classList.remove('open'); editingCatId = null; }
+  function handleCatModalClick(e) { if (e.target === document.getElementById('catModal')) closeCatModal(); }
+
+  function renderEmojiPicker() {
+    const c = document.getElementById('emojiPicker');
+    if (!c) return;
+    c.innerHTML = EMOJI_OPTIONS.map((e, i) => `
+      <div class="emoji-opt ${e===selectedEmoji?'selected':''}" data-ei="${i}">${e}</div>
+    `).join('');
+    // Use event delegation instead of per-emoji onclick (avoids emoji-in-attribute parsing bugs)
+    c.onclick = (ev) => {
+      const el = ev.target.closest('.emoji-opt');
+      if (!el) return;
+      const idx = parseInt(el.dataset.ei);
+      selectedEmoji = EMOJI_OPTIONS[idx];
+      c.querySelectorAll('.emoji-opt').forEach(x => x.classList.remove('selected'));
+      el.classList.add('selected');
+    };
+  }
+
+  function saveCat() {
+    const name = document.getElementById('catNameInput').value.trim();
+    if (!name) { showToast('⚠️ カテゴリ名を入力してください'); return; }
+    const isImpulse = document.getElementById('catImpulseToggle').classList.contains('on');
+    const color = isImpulse ? '#ff4757' : '#6c63ff';
+
+    if (editingCatId) {
+      const cat = categories.find(c => c.id === editingCatId);
+      if (cat) { cat.emoji = selectedEmoji; cat.label = name; cat.isImpulse = isImpulse; cat.color = color; }
+    } else {
+      const newId = 'cat_' + Date.now();
+      categories.push({ id: newId, emoji: selectedEmoji, label: name, isImpulse, color });
+    }
+    saveCategories();
+    closeCatModal();
+    renderCatEditorList();
+    renderCategoryGrid('categoryGrid');
+    showToast(editingCatId ? '✅ カテゴリを更新しました' : '✅ カテゴリを追加しました');
+    editingCatId = null;
+  }
+
+  // ===== SETTINGS =====
+  function toggleNotifications() {
+    if (!('Notification' in window)) { showToast('❌ このブラウザは通知非対応です'); return; }
+    if (settings.notificationsEnabled) {
+      settings.notificationsEnabled = false;
+      document.getElementById('notifBtn').textContent = '有効にする';
+      document.getElementById('notifBtn').classList.remove('enabled');
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+      showToast('🔕 通知を無効にしました');
+    } else {
+      Notification.requestPermission().then(p => {
+        if (p === 'granted') {
+          settings.notificationsEnabled = true;
+          document.getElementById('notifBtn').textContent = '有効中 ✓';
+          document.getElementById('notifBtn').classList.add('enabled');
+          localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+          setupNotifTimer();
+          showToast('🔔 通知を有効にしました！');
+        } else { showToast('❌ 通知の許可が必要です'); }
+      });
+    }
+  }
+
+  function toggleImpulseWarning() {
+    settings.impulseWarningEnabled = !settings.impulseWarningEnabled;
+    document.getElementById('impulseWarningToggle').className = 'toggle' + (settings.impulseWarningEnabled ? ' on' : '');
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  }
+
+  function copyShortcutUrl(app) {
+    const url = window.location.origin + window.location.pathname + `?record=1&app=${app}`;
+    navigator.clipboard.writeText(url).then(() => showToast('✅ URLをコピーしました！')).catch(() => { prompt('このURLをコピーしてください:', url); });
+  }
+
+  // ===== NOTIFICATION =====
+  function setupNotifTimer() {
+    if (!settings.notificationsEnabled) return;
+    setInterval(() => {
+      const now = new Date();
+      const [h,m] = settings.notifTime.split(':').map(Number);
+      if (now.getHours()===h && now.getMinutes()===m) sendDailySummaryNotif();
+    }, 60000);
+  }
+  function sendDailySummaryNotif() {
+    const today = records.filter(r => new Date(r.timestamp).toDateString()===new Date().toDateString());
+    const total = today.reduce((s,r)=>s+r.amount,0);
+    const impulseCatIds = new Set(categories.filter(c=>c.isImpulse).map(c=>c.id));
+    const impulse = today.filter(r => impulseCatIds.has(r.catId));
+    const tImp = impulse.reduce((s,r)=>s+r.amount,0);
+    const title = 'PayGuard 今日のサマリー 🛡️';
+    let body = today.length>0 ? `今日: ${today.length}件 ¥${total.toLocaleString('ja-JP')}` : '今日の記録はありません。ちゃんと使えましたね！🎉';
+    if (impulse.length>0) body += `\n衝動買い: ${impulse.length}件 ¥${tImp.toLocaleString('ja-JP')}`;
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller)
+      navigator.serviceWorker.controller.postMessage({type:'SHOW_NOTIFICATION',title,body,tag:'daily-summary'});
+    else if (Notification.permission==='granted') new Notification(title,{body});
+  }
+
+  // ===== CSV EXPORT =====
+  function exportCSV() {
+    if (!records.length) { showToast('⚠️ 記録がありません'); return; }
+    const header = ['日時','金額','カテゴリ','理由','支払い方法'];
+    const rows = records.map(r => [
+      new Date(r.timestamp).toLocaleString('ja-JP'), r.amount,
+      getCatById(r.catId).label,
+      '"'+r.reason.replace(/"/g,'""')+'"',
+      getPayById(r.payMethod).label.replace('\n','')
+    ]);
+    const csv = [header,...rows].map(r=>r.join(',')).join('\n');
+    const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url; a.download=`payguard_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+    showToast('✅ CSVをダウンロードしました');
+  }
+
+  function clearAllData() {
+    if (!confirm('⚠️ すべての記録を削除します。この操作は取り消せません。')) return;
+    records = []; localStorage.removeItem(STORAGE_KEY);
+    updateDashboard(); renderHistory(); renderAnalysis();
+    showToast('🗑️ データを削除しました');
+  }
+
+  // ===== TOAST =====
+  function showToast(msg) {
+    const t = document.getElementById('toast'); t.textContent = msg;
+    t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2800);
+  }
+
+  // ===== UTILS =====
+  function escapeHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function hexAlpha(hex, alpha) {
+    const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+
+  // ===== DEMO DATA =====
+  function addDemoData() {
+    if (records.length > 0) return;
+    const now = new Date();
+    records = [
+      { id: now-1, amount:580,  catId:'food',          reason:'昼ごはんのおにぎりとお茶',           payMethod:'paypay',   timestamp:new Date(now-2*3600000).toISOString() },
+      { id: now-2, amount:2980, catId:'impulse',        reason:'なんとなくコンビニでお菓子をたくさん買ってしまった', payMethod:'paypay',   timestamp:new Date(now-5*3600000).toISOString() },
+      { id: now-3, amount:1200, catId:'transport',      reason:'電車で移動',                         payMethod:'suica',    timestamp:new Date(now-86400000).toISOString() },
+      { id: now-4, amount:500,  catId:'entertainment',  reason:'漫画の新刊を1冊購入',                payMethod:'cash',     timestamp:new Date(now-2*86400000).toISOString() },
+      { id: now-5, amount:4500, catId:'necessary',      reason:'週の食材をまとめ買い',               payMethod:'applepay', timestamp:new Date(now-3*86400000).toISOString() },
+      { id: now-6, amount:1800, catId:'impulse',        reason:'安かったので衝動的に服を購入',        payMethod:'paypay',   timestamp:new Date(now-4*86400000).toISOString() },
+      { id: now-7, amount:650,  catId:'food',           reason:'コーヒーと軽食',                     payMethod:'applepay', timestamp:new Date(now-5*86400000).toISOString() },
+    ];
+    saveData();
+  }
+
+  // ===== START =====
+  addDemoData();
+  init();
+  </script>
+</body>
+</html>
