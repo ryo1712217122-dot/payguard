@@ -780,7 +780,7 @@
         </div>
 
         <div style="height:16px"></div>
-        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v1.3 · データはこのデバイスのみに保存</p>
+        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v1.3.1 · データはこのデバイスのみに保存</p>
         <div style="height:24px"></div>
       </div>
     </div>
@@ -987,12 +987,20 @@
   function loadCategories() {
     try {
       const saved = JSON.parse(localStorage.getItem(CATEGORIES_KEY) || 'null');
-      // If the user has older version categories (fewer than 20), overwrite with the new defaults
-      if (saved && saved.length > 20) {
-        categories = saved;
+      const currentVer = localStorage.getItem('payguard_app_version');
+
+      // Version 1.3 migration: Force migrate old category lists (length < 20) to the new 27 defaults
+      if (!currentVer || parseFloat(currentVer) < 1.3) {
+        if (!saved || saved.length < 20) {
+          categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
+          saveCategories();
+        } else {
+          categories = saved;
+        }
+        localStorage.setItem('payguard_app_version', '1.3');
       } else {
-        categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
-        saveCategories();
+        // Already migrated to v1.3+, load user-customized categories normally
+        categories = saved || JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
       }
     } catch { categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES)); }
   }
