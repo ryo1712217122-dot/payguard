@@ -6,7 +6,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="PayGuard" />
-  <meta name="theme-color" content="#0d0f1a" />
+  <meta name="theme-color" content="#336B87" />
   <title>PayGuard - 無駄遣い防止アプリ</title>
   <meta name="description" content="決済前に理由を記録して無駄遣いを防止するアプリ" />
   <link rel="manifest" href="manifest.json" />
@@ -18,34 +18,34 @@
   <style>
     /* ===== DESIGN TOKENS ===== */
     :root {
-      --bg-primary: #0d0f1a;
-      --bg-secondary: #13162b;
-      --bg-card: rgba(255,255,255,0.05);
-      --bg-card-hover: rgba(255,255,255,0.08);
-      --glass: rgba(255,255,255,0.06);
-      --glass-border: rgba(255,255,255,0.12);
-      --accent: #6c63ff;
-      --accent-light: #8b85ff;
-      --accent-glow: rgba(108,99,255,0.3);
-      --danger: #ff4757;
-      --danger-light: rgba(255,71,87,0.15);
-      --success: #2ed573;
-      --success-light: rgba(46,213,115,0.15);
-      --warning: #ffa502;
-      --warning-light: rgba(255,165,2,0.15);
-      --text-primary: #f0f0ff;
-      --text-secondary: rgba(240,240,255,0.6);
-      --text-muted: rgba(240,240,255,0.35);
-      --border: rgba(255,255,255,0.08);
+      --bg-primary: #f5f8fa;
+      --bg-secondary: #ffffff;
+      --bg-card: #ffffff;
+      --bg-card-hover: #f0f4f8;
+      --glass: rgba(255,255,255,0.92);
+      --glass-border: rgba(144,175,197,0.35);
+      --accent: #336B87;
+      --accent-light: #90AFC5;
+      --accent-glow: rgba(51,107,135,0.15);
+      --danger: #763626;
+      --danger-light: rgba(118,54,38,0.1);
+      --success: #336B87;
+      --success-light: rgba(51,107,135,0.08);
+      --warning: #763626;
+      --warning-light: rgba(118,54,38,0.08);
+      --text-primary: #2A3132;
+      --text-secondary: rgba(42,49,50,0.7);
+      --text-muted: rgba(42,49,50,0.45);
+      --border: rgba(144,175,197,0.25);
       --radius-sm: 12px;
       --radius-md: 18px;
       --radius-lg: 24px;
       --radius-xl: 32px;
       --font-jp: 'Noto Sans JP', sans-serif;
       --font-en: 'Inter', sans-serif;
-      --shadow-sm: 0 4px 16px rgba(0,0,0,0.3);
-      --shadow-md: 0 8px 32px rgba(0,0,0,0.4);
-      --shadow-lg: 0 20px 60px rgba(0,0,0,0.5);
+      --shadow-sm: 0 4px 12px rgba(42,49,50,0.06);
+      --shadow-md: 0 8px 24px rgba(42,49,50,0.08);
+      --shadow-lg: 0 16px 48px rgba(42,49,50,0.12);
       --transition: all 0.25s cubic-bezier(0.4,0,0.2,1);
     }
 
@@ -67,9 +67,9 @@
     .ambient {
       position: fixed; inset: 0; pointer-events: none; z-index: 0;
       background:
-        radial-gradient(ellipse 60% 50% at 20% 10%, rgba(108,99,255,0.15) 0%, transparent 60%),
-        radial-gradient(ellipse 40% 40% at 80% 80%, rgba(255,71,87,0.08) 0%, transparent 60%),
-        radial-gradient(ellipse 50% 60% at 60% 40%, rgba(46,213,115,0.05) 0%, transparent 60%);
+        radial-gradient(ellipse 60% 50% at 20% 10%, rgba(144,175,197,0.15) 0%, transparent 60%),
+        radial-gradient(ellipse 40% 40% at 80% 80%, rgba(118,54,38,0.05) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 60% at 60% 40%, rgba(51,107,135,0.06) 0%, transparent 60%);
     }
 
     .app { position: relative; z-index: 1; min-height: 100dvh; display: flex; flex-direction: column; }
@@ -89,7 +89,7 @@
     /* ===== BOTTOM NAV ===== */
     .bottom-nav {
       position: fixed; bottom: 0; left: 0; right: 0;
-      background: rgba(13,15,26,0.9);
+      background: rgba(255,255,255,0.92);
       backdrop-filter: blur(20px) saturate(180%);
       -webkit-backdrop-filter: blur(20px) saturate(180%);
       border-top: 1px solid var(--glass-border);
@@ -112,13 +112,13 @@
       bottom: calc(env(safe-area-inset-bottom, 0px) + 24px);
       left: 50%; transform: translateX(-50%);
       width: 64px; height: 64px; border-radius: 50%;
-      background: linear-gradient(135deg, var(--accent), #9b4dff);
+      background: linear-gradient(135deg, var(--accent), var(--accent-light));
       border: none; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      box-shadow: 0 8px 32px var(--accent-glow), 0 4px 16px rgba(0,0,0,0.4);
-      transition: var(--transition); z-index: 101; font-size: 28px;
+      box-shadow: 0 8px 24px rgba(51,107,135,0.25), 0 2px 8px rgba(51,107,135,0.15);
+      transition: var(--transition); z-index: 101; font-size: 28px; color: #fff;
     }
-    .fab:hover { transform: translateX(-50%) scale(1.08); box-shadow: 0 12px 40px var(--accent-glow); }
+    .fab:hover { transform: translateX(-50%) scale(1.08); box-shadow: 0 12px 32px rgba(51,107,135,0.35); }
     .fab:active { transform: translateX(-50%) scale(0.95); }
 
     /* ===== HEADER ===== */
@@ -127,7 +127,7 @@
     }
     .page-header h1 {
       font-size: 28px; font-weight: 800; font-family: var(--font-en);
-      background: linear-gradient(135deg, #fff 30%, var(--accent-light));
+      background: linear-gradient(135deg, var(--accent) 30%, var(--text-primary));
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
     .page-header .subtitle { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
@@ -142,13 +142,13 @@
     .stat-card .value {
       font-size: 24px; font-weight: 800; font-family: var(--font-en);
       margin-top: 6px;
-      background: linear-gradient(135deg, #fff, var(--accent-light));
+      background: linear-gradient(135deg, var(--accent), var(--text-primary));
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
     .stat-card .sub { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
-    .stat-card.danger { border-color: rgba(255,71,87,0.3); background: var(--danger-light); }
-    .stat-card.danger .value { background: linear-gradient(135deg, #ff4757, #ff6b81); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-    .stat-card.success { border-color: rgba(46,213,115,0.3); background: var(--success-light); }
+    .stat-card.danger { border-color: rgba(118,54,38,0.25); background: var(--danger-light); }
+    .stat-card.danger .value { background: linear-gradient(135deg, var(--danger), #a04a38); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .stat-card.success { border-color: rgba(51,107,135,0.2); background: var(--success-light); }
 
     /* ===== SECTION ===== */
     .section { padding: 0 20px 16px; }
@@ -169,7 +169,7 @@
     .tx-emoji {
       font-size: 28px; width: 44px; height: 44px;
       display: flex; align-items: center; justify-content: center;
-      background: rgba(255,255,255,0.06); border-radius: 12px; flex-shrink: 0;
+      background: rgba(144,175,197,0.12); border-radius: 12px; flex-shrink: 0;
     }
     .tx-info { flex: 1; min-width: 0; }
     .tx-reason { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -182,8 +182,8 @@
     /* ===== WARNING BANNER ===== */
     .warning-banner {
       margin: 0 20px 16px; padding: 16px 18px;
-      background: linear-gradient(135deg, rgba(255,71,87,0.15), rgba(255,165,2,0.1));
-      border: 1px solid rgba(255,71,87,0.3);
+      background: linear-gradient(135deg, rgba(118,54,38,0.08), rgba(118,54,38,0.04));
+      border: 1px solid rgba(118,54,38,0.2);
       border-radius: var(--radius-md);
       display: flex; align-items: flex-start; gap: 12px;
     }
@@ -195,14 +195,14 @@
     /* ===== RECORD MODAL ===== */
     .record-overlay {
       position: fixed; inset: 0;
-      background: rgba(0,0,0,0.7);
+      background: rgba(42,49,50,0.4);
       backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
       z-index: 200; display: flex; align-items: flex-end; justify-content: center;
       opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
     }
     .record-overlay.open { opacity: 1; pointer-events: all; }
     .record-sheet {
-      background: #16192e; border: 1px solid var(--glass-border);
+      background: var(--bg-secondary); border: 1px solid var(--glass-border);
       border-radius: var(--radius-xl) var(--radius-xl) 0 0;
       padding: 0 20px calc(env(safe-area-inset-bottom, 0px) + 24px);
       width: 100%; max-width: 480px;
@@ -309,7 +309,7 @@
     /* ===== BUTTONS ===== */
     .submit-row { display: flex; gap: 10px; }
     .btn-primary {
-      flex: 1; background: linear-gradient(135deg, var(--accent), #9b4dff);
+      flex: 1; background: linear-gradient(135deg, var(--accent), var(--accent-light));
       border: none; border-radius: var(--radius-md); color: white;
       font-size: 16px; font-weight: 700; font-family: var(--font-jp);
       padding: 18px; cursor: pointer; transition: var(--transition);
@@ -453,7 +453,7 @@
     }
     .modal-overlay.open { opacity: 1; pointer-events: all; }
     .modal-box {
-      background: #16192e; border: 1px solid var(--glass-border);
+      background: var(--bg-secondary); border: 1px solid var(--glass-border);
       border-radius: var(--radius-xl); padding: 28px 24px;
       width: 100%; max-width: 380px;
       transform: scale(0.92) translateY(20px);
@@ -514,7 +514,7 @@
     /* ===== INFO BANNER ===== */
     .info-banner {
       margin: 0 20px 16px; padding: 12px 16px;
-      background: rgba(108,99,255,0.1); border: 1px solid rgba(108,99,255,0.25);
+      background: rgba(51,107,135,0.06); border: 1px solid rgba(51,107,135,0.15);
       border-radius: var(--radius-sm);
       display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--text-secondary);
     }
@@ -621,9 +621,9 @@
         <div class="meter-ring-wrapper">
           <div class="meter-ring">
             <svg width="80" height="80" viewBox="0 0 80 80">
-              <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="8"/>
+              <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(144,175,197,0.15)" stroke-width="8"/>
               <circle id="meterArc" cx="40" cy="40" r="34" fill="none"
-                stroke="#ff4757" stroke-width="8" stroke-linecap="round"
+                stroke="#763626" stroke-width="8" stroke-linecap="round"
                 stroke-dasharray="213.6" stroke-dashoffset="213.6"
                 style="transition: stroke-dashoffset 1s cubic-bezier(0.4,0,0.2,1)"/>
             </svg>
@@ -830,7 +830,7 @@
         </div>
 
         <div style="height:16px"></div>
-        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v1.7 · データはこのデバイスのみに保存</p>
+        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v1.8 · データはこのデバイスのみに保存</p>
         <div style="height:24px"></div>
       </div>
     </div>
@@ -977,7 +977,7 @@
     { id: 'salary',          emoji: '💰', label: '給料',         isImpulse: false, color: '#2ed573' },
     { id: 'pocket_money',    emoji: '🪙', label: 'おこづかい',   isImpulse: false, color: '#ffa502' },
     { id: 'bonus',           emoji: '🎁', label: '賞与',         isImpulse: false, color: '#2ed573' },
-    { id: 'entertainment',   emoji: '🎮', label: '遊び',         isImpulse: false, color: '#6c63ff' },
+    { id: 'entertainment',   emoji: '🎮', label: '遊び',         isImpulse: false, color: '#336B87' },
     { id: 'communication',   emoji: '📱', label: '通信費',       isImpulse: false, color: '#1ed7ff' },
     { id: 'side_job',        emoji: '💼', label: '副業',         isImpulse: false, color: '#2ed573' },
     { id: 'transport',       emoji: '🚃', label: '交通費',       isImpulse: false, color: '#1ed7ff' },
@@ -987,16 +987,16 @@
     { id: 'food',            emoji: '🍔', label: '食費',         isImpulse: false, color: '#ffa502' },
     { id: 'none',            emoji: '❓', label: 'なし',         isImpulse: false, color: '#747d8c' },
     { id: 'extra_income',    emoji: '💸', label: '臨時収入',     isImpulse: false, color: '#2ed573' },
-    { id: 'impulse',         emoji: '🛍️', label: '衝動買い',     isImpulse: true,  color: '#ff4757' },
-    { id: 'luxury',          emoji: '🚬', label: '嗜好品',       isImpulse: true,  color: '#ff4757' },
+    { id: 'impulse',         emoji: '🛍️', label: '衝動買い',     isImpulse: true,  color: '#763626' },
+    { id: 'luxury',          emoji: '🚬', label: '嗜好品',       isImpulse: true,  color: '#763626' },
     { id: 'medical',         emoji: '🏥', label: '医療費',       isImpulse: false, color: '#747d8c' },
-    { id: 'beauty',          emoji: '💄', label: '美容',         isImpulse: false, color: '#6c63ff' },
+    { id: 'beauty',          emoji: '💄', label: '美容',         isImpulse: false, color: '#336B87' },
     { id: 'study',           emoji: '📚', label: '勉強',         isImpulse: false, color: '#2ed573' },
     { id: 'subscription',    emoji: '🔄', label: 'サブスク',     isImpulse: false, color: '#1ed7ff' },
     { id: 'repayment',       emoji: '💳', label: '返済',         isImpulse: false, color: '#747d8c' },
-    { id: 'live',            emoji: '🎸', label: 'ライブ',       isImpulse: false, color: '#6c63ff' },
-    { id: 'smoking_machine', emoji: '🚬', label: '喫煙マシーン', isImpulse: true,  color: '#ff4757' },
-    { id: 'electronics',     emoji: '🔌', label: '電化製品',     isImpulse: false, color: '#6c63ff' },
+    { id: 'live',            emoji: '🎸', label: 'ライブ',       isImpulse: false, color: '#336B87' },
+    { id: 'smoking_machine', emoji: '🚬', label: '喫煙マシーン', isImpulse: true,  color: '#763626' },
+    { id: 'electronics',     emoji: '🔌', label: '電化製品',     isImpulse: false, color: '#336B87' },
     { id: 'gift',            emoji: '🎁', label: 'お土産',       isImpulse: false, color: '#ffa502' },
     { id: 'pension',         emoji: '👵', label: '年金',         isImpulse: false, color: '#2ed573' },
     { id: 'tax',             emoji: '🏛️', label: '市民税',       isImpulse: false, color: '#747d8c' },
@@ -1596,7 +1596,7 @@
   function saveCat() {
     const name = document.getElementById('catNameInput').value.trim();
     if (!name) { showToast('⚠️ カテゴリ名を入力してください'); return; }
-    const color = '#6c63ff'; // Default standard purple color for custom categories
+    const color = '#336B87'; // Default standard color for custom categories
 
     if (editingCatId) {
       const cat = categories.find(c => c.id === editingCatId);
