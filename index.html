@@ -808,6 +808,18 @@
         </div>
 
         <div class="settings-item">
+          <div class="settings-icon">🔄</div>
+          <div class="settings-info">
+            <div class="si-title">データ移行 (バックアップ / 復元)</div>
+            <div class="si-desc">古いアプリ版から新しいブラウザ版へ履歴を移行</div>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <button class="settings-action" onclick="exportBackup()">書き出し</button>
+            <button class="settings-action" onclick="importBackup()">取り込み</button>
+          </div>
+        </div>
+
+        <div class="settings-item">
           <div class="settings-icon">🗑️</div>
           <div class="settings-info">
             <div class="si-title">全データを削除</div>
@@ -817,7 +829,7 @@
         </div>
 
         <div style="height:16px"></div>
-        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v1.5 · データはこのデバイスのみに保存</p>
+        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v1.6 · データはこのデバイスのみに保存</p>
         <div style="height:24px"></div>
       </div>
     </div>
@@ -1694,6 +1706,50 @@
     renderHistory();
     renderAnalysis();
     showToast('🗑️ データを削除しました');
+  }
+
+  function exportBackup() {
+    const backup = {
+      records: records,
+      categories: categories,
+      settings: settings,
+      demoLoaded: localStorage.getItem('payguard_demo_loaded'),
+      version: localStorage.getItem('payguard_app_version')
+    };
+    try {
+      const str = btoa(unescape(encodeURIComponent(JSON.stringify(backup))));
+      navigator.clipboard.writeText(str).then(() => {
+        showToast('📋 移行データをコピーしました！新環境で「取り込み」してください。');
+      }).catch(() => {
+        prompt('以下の文字列をすべてコピーしてください：', str);
+      });
+    } catch (e) {
+      showToast('❌ 書き出しに失敗しました');
+    }
+  }
+
+  function importBackup() {
+    const str = prompt('コピーした移行用データをここに貼り付けてください：');
+    if (!str) return;
+    try {
+      const jsonStr = decodeURIComponent(escape(atob(str.trim())));
+      const backup = JSON.parse(jsonStr);
+      if (!backup.records) {
+        showToast('⚠️ 不正なデータ形式です');
+        return;
+      }
+      if (confirm('⚠️ データを復元します。現在のデータはすべて上書きされますがよろしいですか？')) {
+        if (backup.records) localStorage.setItem(STORAGE_KEY, JSON.stringify(backup.records));
+        if (backup.categories) localStorage.setItem(CATEGORIES_KEY, JSON.stringify(backup.categories));
+        if (backup.settings) localStorage.setItem(SETTINGS_KEY, JSON.stringify(backup.settings));
+        if (backup.demoLoaded) localStorage.setItem('payguard_demo_loaded', backup.demoLoaded);
+        if (backup.version) localStorage.setItem('payguard_app_version', backup.version);
+        showToast('✅ 移行が完了しました！自動で再起動します。');
+        setTimeout(() => { window.location.reload(); }, 1500);
+      }
+    } catch (e) {
+      showToast('❌ データの取り込みに失敗しました。正しいテキストを貼り付けてください。');
+    }
   }
 
   // ===== TOAST =====
