@@ -1,5 +1,5 @@
-const CACHE_NAME = 'payguard-v3';
-const urlsToCache = ['/'];
+const CACHE_NAME = 'payguard-v4';
+const urlsToCache = ['./', 'index.html', 'manifest.json'];
 
 self.addEventListener('install', event => {
   event.waitUntil(
@@ -17,11 +17,11 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
-// キャッシュを優先するが、HTMLは常にネットワークから取得（開発・更新対応）
+// キャッシュを優先するが、HTMLは常にネットワークから取得
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
-  // HTMLファイルは常にネットワーク優先（キャッシュは使わない）
-  if (event.request.destination === 'document' || url.pathname.endsWith('.html') || url.pathname === '/') {
+  // HTMLファイルやルートアクセスは常にネットワーク優先
+  if (event.request.destination === 'document' || url.pathname.endsWith('.html') || url.pathname.endsWith('/')) {
     event.respondWith(
       fetch(event.request).catch(() => caches.match(event.request))
     );
