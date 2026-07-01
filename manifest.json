@@ -4,7 +4,7 @@
   "description": "決済前に理由を記録して無駄遣いを減らすアプリ",
   "start_url": "./",
   "scope": "./",
-  "display": "standalone",
+  "display": "browser",
   "background_color": "#0d0f1a",
   "theme_color": "#6c63ff",
   "orientation": "portrait",
