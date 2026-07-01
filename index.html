@@ -523,6 +523,43 @@
     .divider { height: 1px; background: var(--border); margin: 8px 0; }
     .mb-12 { margin-bottom: 12px; }
 
+    .expense-type-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .expense-type-btn {
+      background: var(--glass);
+      border: 2px solid var(--glass-border);
+      border-radius: var(--radius-sm);
+      color: var(--text-secondary);
+      font-size: 14px;
+      font-weight: 600;
+      font-family: var(--font-jp);
+      padding: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: var(--transition);
+      -webkit-tap-highlight-color: transparent;
+    }
+    .expense-type-btn:active {
+      transform: scale(0.98);
+    }
+    .expense-type-btn.active[data-type="necessary"] {
+      border-color: var(--success);
+      background: var(--success-light);
+      color: var(--success);
+    }
+    .expense-type-btn.active[data-type="impulse"] {
+      border-color: var(--danger);
+      background: var(--danger-light);
+      color: var(--danger);
+    }
+
     @media (min-width: 480px) {
       .record-overlay { padding: 20px; }
       .record-sheet { border-radius: var(--radius-xl); max-height: 90dvh; }
@@ -780,7 +817,7 @@
         </div>
 
         <div style="height:16px"></div>
-        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v1.3.1 · データはこのデバイスのみに保存</p>
+        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v1.4 · データはこのデバイスのみに保存</p>
         <div style="height:24px"></div>
       </div>
     </div>
@@ -848,6 +885,19 @@
         </div>
       </div>
 
+      <!-- Expense Type (Necessary vs Impulse) -->
+      <div class="form-group">
+        <label class="form-label">支出の分類</label>
+        <div class="expense-type-grid">
+          <button type="button" class="expense-type-btn active" data-type="necessary" id="typeNecessaryBtn" onclick="selectRecordType(false, 'impulseWarning')">
+            <span>✅ 必要な支出</span>
+          </button>
+          <button type="button" class="expense-type-btn" data-type="impulse" id="typeImpulseBtn" onclick="selectRecordType(true, 'impulseWarning')">
+            <span>🚨 衝動買い</span>
+          </button>
+        </div>
+      </div>
+
       <!-- Impulse Warning -->
       <div class="impulse-warning" id="impulseWarning">
         <span class="wi-icon">🚨</span>
@@ -886,14 +936,6 @@
       <div class="form-group">
         <label class="form-label" for="catNameInput">カテゴリ名</label>
         <input type="text" class="form-input" id="catNameInput" placeholder="例：医療費" maxlength="10" />
-      </div>
-
-      <div class="settings-item" style="margin-bottom:0;padding:12px 14px">
-        <div class="settings-info">
-          <div class="si-title" style="font-size:14px">衝動買いカテゴリとしてマーク</div>
-          <div class="si-desc">警告バナーを表示します</div>
-        </div>
-        <div class="toggle" id="catImpulseToggle" onclick="this.classList.toggle('on')"></div>
       </div>
 
       <div class="modal-actions">
@@ -963,6 +1005,7 @@
   // cat edit modal state
   let editingCatId   = null;
   let selectedEmoji  = '🛍️';
+  let isCurrentRecordImpulse = false;
 
   // ===== INIT =====
   function init() {
@@ -1093,12 +1136,26 @@
     grid.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('selected'));
     btn.classList.add('selected');
     selectedCatId = btn.dataset.catId;
-    const isImpulse = btn.dataset.isImpulse === 'true';
-    // Record sheet uses 'impulseWarning'; record mode screen uses 'recordModeImpulseWarning'
-    const inModeScreen = !!btn.closest('#recordModeContent');
-    const warningId = inModeScreen ? 'recordModeImpulseWarning' : 'impulseWarning';
+  }
+
+  function selectRecordType(isImpulse, warningId) {
+    isCurrentRecordImpulse = isImpulse;
+    const prefix = warningId === 'recordModeImpulseWarning' ? 'recordMode' : '';
+    const necBtn = document.getElementById(prefix ? 'recordModeTypeNecessaryBtn' : 'typeNecessaryBtn');
+    const impBtn = document.getElementById(prefix ? 'recordModeTypeImpulseBtn' : 'typeImpulseBtn');
+    
+    if (isImpulse) {
+      if (necBtn) necBtn.classList.remove('active');
+      if (impBtn) impBtn.classList.add('active');
+    } else {
+      if (necBtn) necBtn.classList.add('active');
+      if (impBtn) impBtn.classList.remove('active');
+    }
+    
     const warning = document.getElementById(warningId);
-    if (warning) warning.className = 'impulse-warning' + (isImpulse && settings.impulseWarningEnabled ? ' show' : '');
+    if (warning) {
+      warning.className = 'impulse-warning' + (isImpulse && settings.impulseWarningEnabled ? ' show' : '');
+    }
   }
 
 
@@ -1123,6 +1180,7 @@
     renderCategoryGrid('categoryGrid');
     document.getElementById('reasonInput').value = '';
     document.getElementById('impulseWarning').className = 'impulse-warning';
+    selectRecordType(false, 'impulseWarning');
   }
 
   // ===== RECORD MODE SCREEN (from shortcut) =====
@@ -1145,6 +1203,18 @@
       <div class="form-group">
         <label class="form-label">カテゴリ</label>
         <div class="category-grid" id="recordModeCatGrid"></div>
+      </div>
+      <!-- Expense Type (Necessary vs Impulse) -->
+      <div class="form-group">
+        <label class="form-label">支出の分類</label>
+        <div class="expense-type-grid">
+          <button type="button" class="expense-type-btn active" data-type="necessary" id="recordModeTypeNecessaryBtn" onclick="selectRecordType(false, 'recordModeImpulseWarning')">
+            <span>✅ 必要な支出</span>
+          </button>
+          <button type="button" class="expense-type-btn" data-type="impulse" id="recordModeTypeImpulseBtn" onclick="selectRecordType(true, 'recordModeImpulseWarning')">
+            <span>🚨 衝動買い</span>
+          </button>
+        </div>
       </div>
       <div class="impulse-warning" id="recordModeImpulseWarning">
         <span class="wi-icon">🚨</span>
@@ -1178,7 +1248,7 @@
     if (!currentAmount || currentAmount === '0') { showToast('⚠️ 金額を入力してください'); return; }
     if (!selectedCatId) { showToast('⚠️ カテゴリを選択してください'); return; }
     if (!reason) { showToast('⚠️ 理由を入力してください'); return; }
-    saveRecord(parseInt(currentAmount), selectedCatId, reason, appKey);
+    saveRecord(parseInt(currentAmount), selectedCatId, reason, appKey, isCurrentRecordImpulse);
     closeRecordMode();
     updateDashboard();
     showToast('✅ 記録しました！');
@@ -1211,7 +1281,7 @@
     if (!currentAmount || currentAmount === '0') { showToast('⚠️ 金額を入力してください'); return; }
     if (!selectedCatId) { showToast('⚠️ カテゴリを選択してください'); return; }
     if (!reason) { showToast('⚠️ 理由を入力してください'); return; }
-    saveRecord(parseInt(currentAmount), selectedCatId, reason, selectedPayMethod);
+    saveRecord(parseInt(currentAmount), selectedCatId, reason, selectedPayMethod, isCurrentRecordImpulse);
     closeRecordSheet();
     updateDashboard();
     showToast('✅ 記録しました！');
@@ -1220,18 +1290,23 @@
     if (pm?.url && pm.autoLaunch) setTimeout(() => { window.location.href = pm.url; }, 500);
   }
 
-  function saveRecord(amount, catId, reason, payMethod) {
-    records.unshift({ id: Date.now(), amount, catId, reason, payMethod, timestamp: new Date().toISOString() });
+  function saveRecord(amount, catId, reason, payMethod, isImpulse) {
+    records.unshift({ id: Date.now(), amount, catId, reason, payMethod, isImpulse, timestamp: new Date().toISOString() });
     saveData();
     checkImpulseWarnings();
+  }
+
+  function isRecordImpulse(r) {
+    if (r.isImpulse !== undefined) return r.isImpulse;
+    const cat = getCatById(r.catId);
+    return cat.isImpulse || r.catId === 'impulse';
   }
 
   // ===== IMPULSE WARNING =====
   function checkImpulseWarnings() {
     const today = new Date().toDateString();
     const todayRecs = records.filter(r => new Date(r.timestamp).toDateString() === today);
-    const impulseCats = new Set(categories.filter(c => c.isImpulse).map(c => c.id));
-    const impulseToday = todayRecs.filter(r => impulseCats.has(r.catId));
+    const impulseToday = todayRecs.filter(r => isRecordImpulse(r));
     const banner = document.getElementById('warningBanner');
     if (impulseToday.length >= 3) {
       banner.classList.remove('hidden');
@@ -1247,13 +1322,11 @@
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay());
-    const impulseCatIds = new Set(categories.filter(c => c.isImpulse).map(c => c.id));
-    const necessaryCatIds = new Set(categories.filter(c => c.id === 'necessary').map(c => c.id));
 
     const monthRecs    = records.filter(r => new Date(r.timestamp) >= monthStart);
     const weekRecs     = records.filter(r => new Date(r.timestamp) >= weekStart);
-    const impulseRecs  = monthRecs.filter(r => impulseCatIds.has(r.catId));
-    const necessaryRecs= monthRecs.filter(r => necessaryCatIds.has(r.catId));
+    const impulseRecs  = monthRecs.filter(r => isRecordImpulse(r));
+    const necessaryRecs= monthRecs.filter(r => !isRecordImpulse(r));
 
     const totalMonth   = monthRecs.reduce((s,r)=>s+r.amount,0);
     const totalImpulse = impulseRecs.reduce((s,r)=>s+r.amount,0);
@@ -1308,7 +1381,7 @@
       const pay = getPayById(r.payMethod);
       const d = new Date(r.timestamp);
       const ds = `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-      const amtClass = cat.isImpulse ? 'impulse' : '';
+      const amtClass = isRecordImpulse(r) ? 'impulse' : '';
       const tagStyle = `background:${hexAlpha(cat.color,0.15)};color:${cat.color}`;
       return `
         <div class="tx-item">
@@ -1346,8 +1419,7 @@
   }
   function renderAnalysis() {
     const recs = getPeriodRecords();
-    const impulseCatIds = new Set(categories.filter(c => c.isImpulse).map(c => c.id));
-    const impulse = recs.filter(r => impulseCatIds.has(r.catId));
+    const impulse = recs.filter(r => isRecordImpulse(r));
     const total  = recs.reduce((s,r)=>s+r.amount,0);
     const tImp   = impulse.reduce((s,r)=>s+r.amount,0);
     document.getElementById('periodTotal').textContent = '¥'+total.toLocaleString('ja-JP');
@@ -1414,8 +1486,7 @@
 
   function renderImpulseRanking(recs) {
     const c = document.getElementById('impulseRanking');
-    const impulseCatIds = new Set(categories.filter(cat => cat.isImpulse).map(cat => cat.id));
-    const impulseRecs = recs.filter(r => impulseCatIds.has(r.catId));
+    const impulseRecs = recs.filter(r => isRecordImpulse(r));
     if (!impulseRecs.length) {
       c.innerHTML = `<div class="empty-state"><div class="es-icon">🏆</div><div class="es-title">衝動買いの記録なし</div><div class="es-text">素晴らしい！引き続き頑張りましょう</div></div>`;
       return;
@@ -1486,7 +1557,6 @@
     selectedEmoji = existing?.emoji || '🛍️';
     document.getElementById('catModalTitle').textContent = id ? 'カテゴリを編集' : 'カテゴリを追加';
     document.getElementById('catNameInput').value = existing?.label || '';
-    document.getElementById('catImpulseToggle').className = 'toggle' + ((existing?.isImpulse) ? ' on' : '');
     renderEmojiPicker();
     document.getElementById('catModal').classList.add('open');
   }
@@ -1513,15 +1583,14 @@
   function saveCat() {
     const name = document.getElementById('catNameInput').value.trim();
     if (!name) { showToast('⚠️ カテゴリ名を入力してください'); return; }
-    const isImpulse = document.getElementById('catImpulseToggle').classList.contains('on');
-    const color = isImpulse ? '#ff4757' : '#6c63ff';
+    const color = '#6c63ff'; // Default standard purple color for custom categories
 
     if (editingCatId) {
       const cat = categories.find(c => c.id === editingCatId);
-      if (cat) { cat.emoji = selectedEmoji; cat.label = name; cat.isImpulse = isImpulse; cat.color = color; }
+      if (cat) { cat.emoji = selectedEmoji; cat.label = name; cat.isImpulse = false; cat.color = color; }
     } else {
       const newId = 'cat_' + Date.now();
-      categories.push({ id: newId, emoji: selectedEmoji, label: name, isImpulse, color });
+      categories.push({ id: newId, emoji: selectedEmoji, label: name, isImpulse: false, color });
     }
     saveCategories();
     closeCatModal();
@@ -1577,8 +1646,7 @@
   function sendDailySummaryNotif() {
     const today = records.filter(r => new Date(r.timestamp).toDateString()===new Date().toDateString());
     const total = today.reduce((s,r)=>s+r.amount,0);
-    const impulseCatIds = new Set(categories.filter(c=>c.isImpulse).map(c=>c.id));
-    const impulse = today.filter(r => impulseCatIds.has(r.catId));
+    const impulse = today.filter(r => isRecordImpulse(r));
     const tImp = impulse.reduce((s,r)=>s+r.amount,0);
     const title = 'PayGuard 今日のサマリー 🛡️';
     let body = today.length>0 ? `今日: ${today.length}件 ¥${total.toLocaleString('ja-JP')}` : '今日の記録はありません。ちゃんと使えましたね！🎉';
