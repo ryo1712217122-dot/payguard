@@ -945,7 +945,7 @@
         </div>
 
         <div style="height:16px"></div>
-        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v1.9.1 · データはこのデバイスのみに保存</p>
+        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v1.9.2 · データはこのデバイスのみに保存</p>
         <div style="height:24px"></div>
       </div>
     </div>
@@ -1138,7 +1138,9 @@
     isAppLocked = true;
     lockScreenMode = mode;
     currentPinInput = '';
-    tempSetupPin = '';
+    if (mode !== 'setup_confirm') {
+      tempSetupPin = '';
+    }
     
     const lockScreen = document.getElementById('lockScreen');
     const title = document.getElementById('lockTitle');
@@ -1735,9 +1737,22 @@
     const totals = {};
     recs.forEach(r => { totals[r.catId] = (totals[r.catId]||0)+r.amount; });
     const labels=[],data=[],colors=[];
-    Object.entries(totals).sort((a,b)=>b[1]-a[1]).forEach(([id,v]) => {
+    const themePalette = [
+      '#4F6457', // Forest Green
+      '#75B1A9', // Sage Teal
+      '#D9B44A', // Gold
+      '#ACD0C0', // Mint
+      '#c49a2a', // Dark Gold
+      '#627a6c', // 深いForest Green
+      '#8dc5bd', // 明るいTeal
+      '#ebd085', // 薄いGold
+      '#c2ded0', // 薄いMint
+      '#3c4c42'  // 暗いForest Green
+    ];
+    Object.entries(totals).sort((a,b)=>b[1]-a[1]).forEach(([id,v], idx) => {
       const cat = getCatById(id);
-      labels.push(cat.label); data.push(v); colors.push(cat.color||'#747d8c');
+      labels.push(cat.label); data.push(v);
+      colors.push(themePalette[idx % themePalette.length]);
     });
     if (catChart) catChart.destroy();
     catChart = new Chart(ctx, {
