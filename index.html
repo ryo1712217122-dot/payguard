@@ -1069,7 +1069,7 @@
         </div>
 
         <div style="height:16px"></div>
-        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v2.3.0 · クラウド / ローカル連携対応</p>
+        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v2.3.1 · クラウド / ローカル連携対応</p>
         <div style="height:24px"></div>
       </div>
     </div>
@@ -2659,28 +2659,45 @@
   }
 
   // ===== HISTORY =====
-  function populateHistoryFilters() {
-    const select = document.getElementById('historyFilterSelect');
-    if (!select) return;
-    const currentVal = select.value || 'all';
-    
-    let html = '<option value="all">🔍 すべてのカテゴリ</option>';
-    categories.forEach(cat => {
-      html += `<option value="${cat.id}">${cat.emoji} ${cat.label}</option>`;
-    });
-    select.innerHTML = html;
-    
-    // 選択されていた値があれば保持（カテゴリ追加時などの再描画用）
-    if ([...select.options].some(opt => opt.value === currentVal)) {
-      select.value = currentVal;
-    } else {
-      select.value = 'all';
+  function updateHistoryFilterOptions() {
+    // 1. Populate Category dropdown
+    const catSelect = document.getElementById('historyFilterSelect');
+    if (catSelect) {
+      const currentCat = catSelect.value || 'all';
+      let catHtml = '<option value="all">🔍 すべてのカテゴリ</option>';
+      categories.forEach(cat => {
+        catHtml += `<option value="${cat.id}">${cat.emoji} ${cat.label}</option>`;
+      });
+      catSelect.innerHTML = catHtml;
+      if ([...catSelect.options].some(opt => opt.value === currentCat)) {
+        catSelect.value = currentCat;
+      } else {
+        catSelect.value = 'all';
+      }
+    }
+
+    // 2. Populate Payment Method dropdown
+    const paySelect = document.getElementById('historyPayMethodFilterSelect');
+    if (paySelect) {
+      const currentPay = paySelect.value || 'all';
+      let payHtml = '<option value="all">💳 すべての決済方法</option>';
+      Object.entries(PAYMENT_METHODS).forEach(([key, pm]) => {
+        payHtml += `<option value="${key}">${pm.emoji} ${pm.label.replace('\n', ' ')}</option>`;
+      });
+      paySelect.innerHTML = payHtml;
+      if ([...paySelect.options].some(opt => opt.value === currentPay)) {
+        paySelect.value = currentPay;
+      } else {
+        paySelect.value = 'all';
+      }
     }
   }
 
   function renderHistory() {
     const filterSelect = document.getElementById('historyFilterSelect');
     const filterVal = filterSelect ? filterSelect.value : 'all';
+    const payMethodFilterSelect = document.getElementById('historyPayMethodFilterSelect');
+    const payMethodFilterVal = payMethodFilterSelect ? payMethodFilterSelect.value : 'all';
     const sortSelect = document.getElementById('historySortSelect');
     const sortVal = sortSelect ? sortSelect.value : 'date-desc';
     
@@ -2689,6 +2706,11 @@
     // カテゴリフィルターの適用
     if (filterVal !== 'all') {
       items = items.filter(r => r.catId === filterVal);
+    }
+    
+    // 決済方法フィルターの適用
+    if (payMethodFilterVal !== 'all') {
+      items = items.filter(r => r.payMethod === payMethodFilterVal);
     }
     
     // ソート処理
