@@ -951,7 +951,7 @@
         </div>
 
         <div style="height:16px"></div>
-        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v1.9.4 · データはこのデバイスのみに保存</p>
+        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v1.9.5 · データはこのデバイスのみに保存</p>
         <div style="height:24px"></div>
       </div>
     </div>
@@ -1048,6 +1048,15 @@
         <textarea class="form-input" id="reasonInput" placeholder="例：夕食の食材をまとめ買い" rows="3"></textarea>
       </div>
 
+      <!-- Custom Date/Time Option -->
+      <div class="form-group" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <label class="form-label" style="margin-bottom:0;">決済日時を指定する</label>
+        <div class="toggle" id="editTimeToggle" onclick="toggleEditTime()"></div>
+      </div>
+      <div class="form-group" id="customTimeGroup" style="display:none; margin-bottom:16px;">
+        <input type="datetime-local" id="customTimeInput" class="form-input" />
+      </div>
+
       <div class="submit-row">
         <button class="btn-secondary" onclick="closeRecordSheet()">キャンセル</button>
         <button class="btn-primary" id="submitBtn" onclick="submitRecord()">記録する ✓</button>
@@ -1075,6 +1084,71 @@
       <div class="modal-actions">
         <button class="btn-secondary" style="flex:1" onclick="closeCatModal()">キャンセル</button>
         <button class="btn-primary" style="flex:1.5" onclick="saveCat()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== EDIT RECORD MODAL ===== -->
+  <div class="modal-overlay" id="editRecordModal" onclick="handleEditModalOverlayClick(event)">
+    <div class="modal-box" style="max-height:92dvh; overflow-y:auto; width:100%; max-width:420px; padding:24px;">
+      <div class="sheet-title" style="margin-bottom:20px; display:flex; justify-content:space-between; align-items:center;">
+        <span>📝 決済を編集</span>
+        <button class="back-btn" onclick="closeEditRecordModal()" style="font-size:18px; background:none; border:none; color:var(--text-muted); cursor:pointer;">✕</button>
+      </div>
+      
+      <input type="hidden" id="editRecordId" />
+
+      <!-- Amount -->
+      <div class="form-group">
+        <label class="form-label">金額 (円)</label>
+        <input type="number" id="editAmountInput" class="form-input" placeholder="金額を入力" min="0" required />
+      </div>
+
+      <!-- Payment Method -->
+      <div class="form-group">
+        <label class="form-label">支払い方法</label>
+        <select id="editPayMethodSelect" class="form-input" style="background:var(--bg-secondary); cursor:pointer;">
+          <!-- JSで動的に追加 -->
+        </select>
+      </div>
+
+      <!-- Category -->
+      <div class="form-group">
+        <label class="form-label">カテゴリ</label>
+        <select id="editCategorySelect" class="form-input" style="background:var(--bg-secondary); cursor:pointer;">
+          <!-- JSで動的に追加 -->
+        </select>
+      </div>
+
+      <!-- Reason -->
+      <div class="form-group">
+        <label class="form-label">理由 (何を買った？)</label>
+        <input type="text" id="editReasonInput" class="form-input" placeholder="理由を入力" required />
+      </div>
+
+      <!-- Expense Type (Necessary vs Impulse) -->
+      <div class="form-group">
+        <label class="form-label">支出の分類</label>
+        <div class="expense-type-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <button type="button" class="expense-type-btn" id="editTypeNecessaryBtn" onclick="selectEditRecordType(false)">
+            <span>✅ 必要</span>
+          </button>
+          <button type="button" class="expense-type-btn" id="editTypeImpulseBtn" onclick="selectEditRecordType(true)">
+            <span>🛍️ 衝動買い</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Date and Time -->
+      <div class="form-group">
+        <label class="form-label">日時</label>
+        <input type="datetime-local" id="editTimestampInput" class="form-input" required />
+      </div>
+
+      <!-- Actions -->
+      <div class="submit-row" style="margin-top:24px;">
+        <button type="button" class="btn-secondary" onclick="closeEditRecordModal()" style="flex:1;">キャンセル</button>
+        <button type="button" class="btn-primary" onclick="submitEditRecord()" style="flex:1.5;">変更を保存</button>
       </div>
     </div>
   </div>
@@ -1487,6 +1561,14 @@
     document.getElementById('reasonInput').value = '';
     document.getElementById('impulseWarning').className = 'impulse-warning';
     selectRecordType(false, 'impulseWarning');
+    
+    // 日付変更オプションの初期化
+    const timeToggle = document.getElementById('editTimeToggle');
+    if (timeToggle) timeToggle.className = 'toggle';
+    const timeGroup = document.getElementById('customTimeGroup');
+    if (timeGroup) timeGroup.style.display = 'none';
+    const timeInput = document.getElementById('customTimeInput');
+    if (timeInput) timeInput.value = '';
   }
 
   // ===== RECORD MODE SCREEN (from shortcut) =====
@@ -1597,7 +1679,16 @@
   }
 
   function saveRecord(amount, catId, reason, payMethod, isImpulse) {
-    records.unshift({ id: Date.now(), amount, catId, reason, payMethod, isImpulse, timestamp: new Date().toISOString() });
+    let timestamp = new Date().toISOString();
+    
+    // 日時指定が有効な場合、その値を採用
+    const timeToggle = document.getElementById('editTimeToggle');
+    const timeInput = document.getElementById('customTimeInput');
+    if (timeToggle && timeToggle.classList.contains('on') && timeInput && timeInput.value) {
+      timestamp = new Date(timeInput.value).toISOString();
+    }
+    
+    records.unshift({ id: Date.now(), amount, catId, reason, payMethod, isImpulse, timestamp });
     saveData();
     checkImpulseWarnings();
   }
@@ -1690,7 +1781,7 @@
       const amtClass = isRecordImpulse(r) ? 'impulse' : '';
       const tagStyle = `background:${hexAlpha(cat.color,0.15)};color:${cat.color}`;
       return `
-        <div class="tx-item">
+        <div class="tx-item" onclick="openEditRecordModal(${r.id})" style="cursor:pointer;">
           <div class="tx-emoji">${cat.emoji}</div>
           <div class="tx-info">
             <div class="tx-reason">${escapeHtml(r.reason)}</div>
@@ -1699,7 +1790,7 @@
           </div>
           <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
             <div class="tx-amount ${amtClass}">¥${r.amount.toLocaleString('ja-JP')}</div>
-            <button class="cat-editor-btn danger" style="padding: 4px 8px; font-size: 11px; height: auto;" onclick="deleteRecord(${r.id})" title="削除">🗑</button>
+            <button class="cat-editor-btn danger" style="padding: 4px 8px; font-size: 11px; height: auto;" onclick="event.stopPropagation(); deleteRecord(${r.id})" title="削除">🗑</button>
           </div>
         </div>`;
     }).join('');
@@ -2078,6 +2169,121 @@
     } catch (e) {
       showToast('❌ データの取り込みに失敗しました。正しいデータまたはファイルを選択してください。');
     }
+  }
+
+  // ===== RECORD EDITING & CUSTOM TIME LOGIC =====
+  let isEditRecordImpulse = false;
+
+  function toggleEditTime() {
+    const toggle = document.getElementById('editTimeToggle');
+    const group = document.getElementById('customTimeGroup');
+    const input = document.getElementById('customTimeInput');
+    if (!toggle || !group || !input) return;
+    
+    const isEdit = !toggle.classList.contains('on');
+    toggle.className = 'toggle' + (isEdit ? ' on' : '');
+    group.style.display = isEdit ? 'block' : 'none';
+    
+    if (isEdit) {
+      input.value = toLocalDateTimeString(new Date());
+    } else {
+      input.value = '';
+    }
+  }
+
+  function handleEditModalOverlayClick(e) {
+    if (e.target === document.getElementById('editRecordModal')) closeEditRecordModal();
+  }
+
+  function openEditRecordModal(id) {
+    const r = records.find(item => item.id === id);
+    if (!r) return;
+
+    document.getElementById('editRecordId').value = r.id;
+    document.getElementById('editAmountInput').value = r.amount;
+    document.getElementById('editReasonInput').value = r.reason;
+    document.getElementById('editTimestampInput').value = toLocalDateTimeString(new Date(r.timestamp));
+
+    // Populate payment methods
+    const paySelect = document.getElementById('editPayMethodSelect');
+    paySelect.innerHTML = Object.entries(PAYMENT_METHODS).map(([key, pm]) => {
+      return `<option value="${key}">${pm.emoji} ${pm.label.replace('\n', ' ')}</option>`;
+    }).join('');
+    paySelect.value = r.payMethod;
+
+    // Populate categories
+    const catSelect = document.getElementById('editCategorySelect');
+    catSelect.innerHTML = categories.map(cat => {
+      return `<option value="${cat.id}">${cat.emoji} ${cat.label}</option>`;
+    }).join('');
+    catSelect.value = r.catId;
+
+    // Impulse status
+    isEditRecordImpulse = isRecordImpulse(r);
+    selectEditRecordType(isEditRecordImpulse);
+
+    // Open modal
+    document.getElementById('editRecordModal').classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeEditRecordModal() {
+    document.getElementById('editRecordModal').classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  function selectEditRecordType(isImpulse) {
+    isEditRecordImpulse = isImpulse;
+    const nBtn = document.getElementById('editTypeNecessaryBtn');
+    const iBtn = document.getElementById('editTypeImpulseBtn');
+    if (!nBtn || !iBtn) return;
+    
+    if (isImpulse) {
+      iBtn.className = 'expense-type-btn active';
+      iBtn.setAttribute('data-type', 'impulse');
+      nBtn.className = 'expense-type-btn';
+      nBtn.removeAttribute('data-type');
+    } else {
+      nBtn.className = 'expense-type-btn active';
+      nBtn.setAttribute('data-type', 'necessary');
+      iBtn.className = 'expense-type-btn';
+      iBtn.removeAttribute('data-type');
+    }
+  }
+
+  function submitEditRecord() {
+    const id = parseInt(document.getElementById('editRecordId').value, 10);
+    const amount = parseInt(document.getElementById('editAmountInput').value, 10);
+    const payMethod = document.getElementById('editPayMethodSelect').value;
+    const catId = document.getElementById('editCategorySelect').value;
+    const reason = document.getElementById('editReasonInput').value.trim();
+    const timeVal = document.getElementById('editTimestampInput').value;
+
+    if (isNaN(amount) || amount <= 0) { showToast('⚠️ 正しい金額を入力してください'); return; }
+    if (!reason) { showToast('⚠️ 理由を入力してください'); return; }
+    if (!timeVal) { showToast('⚠️ 日時を入力してください'); return; }
+
+    const idx = records.findIndex(r => r.id === id);
+    if (idx === -1) return;
+
+    records[idx].amount = amount;
+    records[idx].payMethod = payMethod;
+    records[idx].catId = catId;
+    records[idx].reason = reason;
+    records[idx].isImpulse = isEditRecordImpulse;
+    records[idx].timestamp = new Date(timeVal).toISOString();
+
+    saveData();
+    updateDashboard();
+    renderHistory(); // Update list
+    closeEditRecordModal();
+    showToast('📝 変更を保存しました');
+  }
+
+  function toLocalDateTimeString(date) {
+    const tzOffset = date.getTimezoneOffset() * 60000;
+    const localISOTime = (new Date(date - tzOffset)).toISOString().slice(0, 16);
+    return localISOTime;
   }
 
   // ===== TOAST =====
