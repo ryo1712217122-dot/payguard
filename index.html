@@ -151,8 +151,8 @@
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
     .stat-card .sub { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
-    .stat-card.danger { border-color: rgba(79,100,87,0.15); background: var(--bg-card); }
-    .stat-card.danger .value { background: linear-gradient(135deg, var(--accent), var(--text-primary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .stat-card.danger { border-color: rgba(231,76,60,0.25) !important; background: rgba(231,76,60,0.04) !important; }
+    .stat-card.danger .value { color: #e74c3c !important; background: none !important; -webkit-background-clip: unset !important; -webkit-text-fill-color: #e74c3c !important; }
     .stat-card.success { border-color: rgba(79,100,87,0.2); background: var(--success-light); }
 
     /* ===== SECTION ===== */
@@ -180,7 +180,7 @@
     .tx-reason { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .tx-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
     .tx-amount { font-family: var(--font-en); font-weight: 700; font-size: 16px; flex-shrink: 0; }
-    .tx-amount.impulse { color: var(--text-primary); font-weight: 700; }
+    .tx-amount.impulse { color: #e74c3c; font-weight: 800; }
     .tx-amount.necessary { color: var(--success); }
     .tx-tag { font-size: 10px; padding: 2px 8px; border-radius: 20px; font-weight: 600; margin-top: 4px; display: inline-block; }
 
@@ -635,6 +635,8 @@
     .lk-btn:active { background: var(--bg-card-hover); transform: scale(0.9); }
     .lk-btn.empty { background: transparent; border: none; cursor: default; box-shadow: none; pointer-events: none; }
     .lk-btn.del { font-size: 18px; color: var(--text-secondary); }
+    .theme-select-btn { transition: var(--transition); box-shadow: var(--shadow-sm); }
+    .theme-select-btn:active { transform: scale(0.96); }
   </style>
 </head>
 
@@ -908,6 +910,53 @@
         </div>
 
         <div class="divider" style="margin:20px 0 14px"></div>
+        <div class="section-title mb-12">デザインテーマ</div>
+        <div class="settings-item" style="display:block; padding:16px;">
+          <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
+            <div class="si-title">テーマ切り替え</div>
+            <div class="si-desc" style="margin-top:2px;">好みのカラーパレットを選択できます</div>
+          </div>
+          <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:10px;">
+            <button class="theme-select-btn" id="themeBtnA" onclick="setTheme('A')" style="background:var(--bg-secondary); border:2px solid var(--border); border-radius:var(--radius-sm); padding:10px; text-align:left; cursor:pointer; outline:none; -webkit-tap-highlight-color:transparent;">
+              <div style="font-weight:700; font-size:12px; margin-bottom:6px; color:var(--text-primary)">Type A</div>
+              <div style="display:flex; gap:4px;">
+                <span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:#F98866;"></span>
+                <span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:#FF420E;"></span>
+                <span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:#80BD9E;"></span>
+                <span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:#89DA59;"></span>
+              </div>
+            </button>
+            <button class="theme-select-btn" id="themeBtnB" onclick="setTheme('B')" style="background:var(--bg-secondary); border:2px solid var(--border); border-radius:var(--radius-sm); padding:10px; text-align:left; cursor:pointer; outline:none; -webkit-tap-highlight-color:transparent;">
+              <div style="font-weight:700; font-size:12px; margin-bottom:6px; color:var(--text-primary)">Type B</div>
+              <div style="display:flex; gap:4px;">
+                <span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:#011A27;"></span>
+                <span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:#063852;"></span>
+                <span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:#F0810F;"></span>
+                <span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:#E6DF44;"></span>
+              </div>
+            </button>
+            <button class="theme-select-btn" id="themeBtnC" onclick="setTheme('C')" style="background:var(--bg-secondary); border:2px solid var(--border); border-radius:var(--radius-sm); padding:10px; text-align:left; cursor:pointer; outline:none; -webkit-tap-highlight-color:transparent;">
+              <div style="font-weight:700; font-size:12px; margin-bottom:6px; color:var(--text-primary)">Type C</div>
+              <div style="display:flex; gap:4px;">
+                <span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:#50312F;"></span>
+                <span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:#CB0000;"></span>
+                <span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:#E4EA8C;"></span>
+                <span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:#3F6C45;"></span>
+              </div>
+            </button>
+            <button class="theme-select-btn" id="themeBtnD" onclick="setTheme('D')" style="background:var(--bg-secondary); border:2px solid var(--border); border-radius:var(--radius-sm); padding:10px; text-align:left; cursor:pointer; outline:none; -webkit-tap-highlight-color:transparent;">
+              <div style="font-weight:700; font-size:12px; margin-bottom:6px; color:var(--text-primary)">Type D</div>
+              <div style="display:flex; gap:4px;">
+                <span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:#AF4425;"></span>
+                <span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:#662E1C;"></span>
+                <span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:#EBDCB2;"></span>
+                <span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:#C9A66B;"></span>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <div class="divider" style="margin:20px 0 14px"></div>
         <div class="section-title mb-12">カテゴリ管理</div>
 
         <div id="catEditorList" class="cat-editor-list" style="margin-bottom:10px"></div>
@@ -970,7 +1019,7 @@
         </div>
 
         <div style="height:16px"></div>
-        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v1.9.9 · データはこのデバイスのみに保存</p>
+        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v2.0.0 · データはこのデバイスのみに保存</p>
         <div style="height:24px"></div>
       </div>
     </div>
@@ -1383,7 +1432,7 @@
   // ===== STATE =====
   let records    = [];
   let categories = [];
-  let settings   = { notificationsEnabled: false, notifTime: '21:00', impulseWarningEnabled: true, pinLockEnabled: false, pinHash: "" };
+  let settings   = { notificationsEnabled: false, notifTime: '21:00', impulseWarningEnabled: true, pinLockEnabled: false, pinHash: "", theme: 'A' };
   let currentAmount   = '';
   let selectedCatId   = null;
   let selectedPayMethod = 'paypay';
@@ -1480,6 +1529,7 @@
 
     const btn = document.getElementById('notifBtn');
     if (settings.notificationsEnabled) { btn.textContent = '有効中 ✓'; btn.classList.add('enabled'); }
+    applyTheme(settings.theme || 'A');
   }
 
   // ===== SERVICE WORKER =====
@@ -1815,15 +1865,17 @@
       const pay = getPayById(r.payMethod);
       const d = new Date(r.timestamp);
       const ds = `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-      const amtClass = isRecordImpulse(r) ? 'impulse' : '';
+      const isImp = isRecordImpulse(r);
+      const amtClass = isImp ? 'impulse' : '';
       const tagStyle = `background:${hexAlpha(cat.color,0.15)};color:${cat.color}`;
+      const impulseTag = isImp ? `<span class="tx-tag" style="background:rgba(231,76,60,0.08);color:#e74c3c;margin-left:6px;">🚨 衝動買い</span>` : '';
       return `
         <div class="tx-item" onclick="openEditRecordModal(${r.id})" style="cursor:pointer;">
           <div class="tx-emoji">${cat.emoji}</div>
           <div class="tx-info">
             <div class="tx-reason">${escapeHtml(r.reason)}</div>
             <div class="tx-meta">${ds} · ${pay.emoji} ${pay.label.replace('\n','')}</div>
-            <span class="tx-tag" style="${tagStyle}">${cat.label}</span>
+            <span class="tx-tag" style="${tagStyle}">${cat.label}</span>${impulseTag}
           </div>
           <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
             <div class="tx-amount ${amtClass}">¥${r.amount.toLocaleString('ja-JP')}</div>
@@ -1914,23 +1966,75 @@
     renderImpulseRanking(recs);
   }
 
+  const THEME_PALETTES = {
+    A: {
+      accent: '#FF420E',
+      accentLight: '#F98866',
+      bgPrimary: '#f4f8f6',
+      border: 'rgba(128, 189, 158, 0.25)',
+      chartColors: ['#FF420E', '#F98866', '#80BD9E', '#89DA59', '#e85c3f', '#c9776b']
+    },
+    B: {
+      accent: '#063852',
+      accentLight: '#F0810F',
+      bgPrimary: '#f1f5f7',
+      border: 'rgba(6, 56, 82, 0.18)',
+      chartColors: ['#063852', '#011A27', '#F0810F', '#E6DF44', '#1f536e', '#f5993b']
+    },
+    C: {
+      accent: '#50312F',
+      accentLight: '#3F6C45',
+      bgPrimary: '#f7f8f4',
+      border: 'rgba(63, 108, 69, 0.2)',
+      chartColors: ['#50312F', '#3F6C45', '#E4EA8C', '#CB0000', '#7a4f4d', '#5a8f61']
+    },
+    D: {
+      accent: '#AF4425',
+      accentLight: '#C9A66B',
+      bgPrimary: '#fbfaf6',
+      border: 'rgba(201, 166, 107, 0.3)',
+      chartColors: ['#AF4425', '#662E1C', '#EBDCB2', '#C9A66B', '#c96447', '#874b3a']
+    }
+  };
+
+  function applyTheme(themeId) {
+    const t = THEME_PALETTES[themeId] || THEME_PALETTES.A;
+    const root = document.documentElement;
+    root.style.setProperty('--accent', t.accent);
+    root.style.setProperty('--accent-light', t.accentLight);
+    root.style.setProperty('--bg-primary', t.bgPrimary);
+    root.style.setProperty('--border', t.border);
+    root.style.setProperty('--accent-glow', t.accent + '26');
+    root.style.setProperty('--glass-border', t.accentLight + '73');
+
+    document.querySelectorAll('.theme-select-btn').forEach(btn => {
+      btn.style.borderColor = 'var(--border)';
+      btn.style.background = 'var(--bg-secondary)';
+    });
+    const activeBtn = document.getElementById('themeBtn' + themeId);
+    if (activeBtn) {
+      activeBtn.style.borderColor = 'var(--accent)';
+      activeBtn.style.background = 'var(--accent-glow)';
+    }
+
+    // redraw charts if initialized
+    if (catChart) renderCatChart(getPeriodRecords());
+    if (dailyChart) renderDailyChart(getPeriodRecords());
+  }
+
+  function setTheme(themeId) {
+    settings.theme = themeId;
+    saveSettings();
+    applyTheme(themeId);
+  }
+
   function renderCatChart(recs) {
     const ctx = document.getElementById('catChart').getContext('2d');
     const totals = {};
     recs.forEach(r => { totals[r.catId] = (totals[r.catId]||0)+r.amount; });
     const labels=[],data=[],colors=[];
-    const themePalette = [
-      '#4F6457', // Forest Green
-      '#75B1A9', // Sage Teal
-      '#D9B44A', // Gold
-      '#ACD0C0', // Mint
-      '#c49a2a', // Dark Gold
-      '#627a6c', // 深いForest Green
-      '#8dc5bd', // 明るいTeal
-      '#ebd085', // 薄いGold
-      '#c2ded0', // 薄いMint
-      '#3c4c42'  // 暗いForest Green
-    ];
+    const activeTheme = settings.theme || 'A';
+    const themePalette = (THEME_PALETTES[activeTheme] || THEME_PALETTES.A).chartColors;
     Object.entries(totals).sort((a,b)=>b[1]-a[1]).forEach(([id,v], idx) => {
       const cat = getCatById(id);
       labels.push(cat.label); data.push(v);
