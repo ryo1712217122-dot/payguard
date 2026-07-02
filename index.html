@@ -784,14 +784,14 @@
         </div>
       </div>
 
-      <div class="chart-container">
+      <div class="chart-container" style="display:flex; flex-direction:column; gap:8px;">
         <div class="chart-title">カテゴリ別</div>
-        <div class="chart-wrapper" style="height:220px;position:relative">
+        <div style="text-align: center; padding: 4px 0 12px; border-bottom:1px dashed var(--border); margin: 0 16px 8px;">
+          <div style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 2px;">期間中の総支出</div>
+          <div class="dc-value" id="donutValue" style="font-family: var(--font-jp); font-size: 26px; font-weight: 800; color: var(--text-primary);">¥0</div>
+        </div>
+        <div class="chart-wrapper" style="height:200px; position:relative;">
           <canvas id="catChart"></canvas>
-          <div class="donut-center">
-            <div class="dc-value" id="donutValue">¥0</div>
-            <div class="dc-label">合計</div>
-          </div>
         </div>
       </div>
 
