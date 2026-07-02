@@ -982,6 +982,30 @@
           </div>
         </div>
 
+
+      <!-- クラウド連携 (スプレッドシート) -->
+      <div class="card mb-16" style="padding:16px">
+        <div class="section-title mb-12">☁️ クラウド連携（スプレッドシート）</div>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label" style="font-size:12px;">GAS Webアプリ URL</label>
+            <input type="text" id="gasUrlInput" class="form-input" placeholder="https://script.google.com/macros/s/.../exec" style="font-size:12px; padding:10px;" />
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn-secondary" onclick="saveGasUrl()" style="flex:1; padding:10px; font-size:12px;">URL保存</button>
+            <button class="btn-secondary" onclick="testGasConnection()" style="flex:1; padding:10px; font-size:12px;">接続テスト</button>
+          </div>
+          <hr style="border:0; border-top:1px dashed var(--border); margin:4px 0;" />
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <button class="btn-primary" onclick="syncToCloud()" style="padding:10px 12px; font-size:12px; background:var(--accent); color:#fff; border:none; border-radius:var(--radius-sm); font-weight:700; cursor:pointer;">
+              スプレッドシートへ全送信（上書き）
+            </button>
+            <button class="btn-primary" onclick="syncFromCloud()" style="padding:10px 12px; font-size:12px; background:var(--accent-light); color:#fff; border:none; border-radius:var(--radius-sm); font-weight:700; cursor:pointer;">
+              スプレッドシートから全読込（復元）
+            </button>
+          </div>
+        </div>
+      </div>
         <div class="divider" style="margin:20px 0 14px"></div>
         <div class="section-title mb-12">カテゴリ管理</div>
 
@@ -1488,6 +1512,9 @@
     renderPayMethodGrid('payMethodGrid', 'paypay');
     renderCategoryGrid('categoryGrid');
     updateDashboard();
+    if (document.getElementById('gasUrlInput')) {
+      document.getElementById('gasUrlInput').value = settings.gasUrl || '';
+    }
     renderCatEditorList();
     setupNotifTimer();
   }
@@ -1584,7 +1611,12 @@
       updateHistoryFilterOptions();
       renderHistory();
     }
-    if (name === 'settings') renderCatEditorList();
+    if (name === 'settings') {
+      renderCatEditorList();
+      if (document.getElementById('gasUrlInput')) {
+        document.getElementById('gasUrlInput').value = settings.gasUrl || '';
+      }
+    }
   }
 
   // ===== RENDER PAYMENT METHOD GRID =====
@@ -1896,9 +1928,107 @@
       timestamp = new Date(timeInput.value).toISOString();
     }
     
-    records.unshift({ id: Date.now(), amount, catId, reason, payMethod, isImpulse, timestamp });
+    const id = Date.now();
+    const newRecord = { id, amount, catId, reason, payMethod, isImpulse, timestamp };
+    records.unshift(newRecord);
     saveData();
     checkImpulseWarnings();
+
+    // GAS連携の非同期送信
+    if (settings.gasUrl && settings.gasUrl.trim()) {
+      showToast('☁️ クラウドへ同期中...');
+      fetch(settings.gasUrl.trim(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'add', record: newRecord })
+      }).then(res => {
+        return res.json().catch(() => ({ status: 'success' }));
+      }).then(data => {
+        if (data && data.status === 'success') {
+          showToast('✅ クラウド同期完了！');
+        } else {
+          showToast('⚠️ クラウド同期失敗（ローカルのみ保存済）');
+        }
+      }).catch(err => {
+        console.error(err);
+        showToast('⚠️ クラウド同期失敗（ローカルのみ保存済）');
+      });
+    }
+  }
+
+  function saveGasUrl() {
+    const url = document.getElementById('gasUrlInput').value.trim();
+    settings.gasUrl = url;
+    saveSettings();
+    showToast('💾 GAS URLを保存しました');
+  }
+
+  function testGasConnection() {
+    const url = document.getElementById('gasUrlInput').value.trim();
+    if (!url) { showToast('⚠️ GAS URLが入力されていません'); return; }
+    showToast('⚡ 接続テスト中...');
+    
+    fetch(url)
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.records) {
+          showToast(`✅ 接続成功！(シートデータ: ${data.records.length}件)`);
+        } else {
+          showToast('⚠️ 接続はできましたが、データ形式が不正です');
+        }
+      })
+      .catch(err => {
+        console.error(err);
+        showToast('❌ 接続テスト失敗。URLや共有設定を確認してください');
+      });
+  }
+
+  function syncToCloud() {
+    const url = settings.gasUrl;
+    if (!url) { showToast('⚠️ GAS URLが設定されていません'); return; }
+    if (!confirm('ローカルの全履歴（' + records.length + '件）でスプレッドシートを上書きします。よろしいですか？')) return;
+    
+    showToast('📤 クラウドへデータを送信中...');
+    fetch(url, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'sync', records: records })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data && data.status === 'success') {
+        showToast('✅ 全同期が完了しました！');
+      } else {
+        showToast('⚠️ 同期エラー: ' + (data.message || '不明なエラー'));
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      showToast('❌ 送信に失敗しました');
+    });
+  }
+
+  function syncFromCloud() {
+    const url = settings.gasUrl;
+    if (!url) { showToast('⚠️ GAS URLが設定されていません'); return; }
+    if (!confirm('スプレッドシートのデータでローカルの履歴をすべて上書き（復元）します。よろしいですか？')) return;
+    
+    showToast('📥 クラウドからデータを取得中...');
+    fetch(url)
+    .then(res => res.json())
+    .then(data => {
+      if (data && data.records) {
+        records = data.records;
+        saveData();
+        updateDashboard();
+        showToast(`✅ 復元完了！ (${records.length}件 of data)`);
+      } else {
+        showToast('⚠️ 取得データの形式が不正です');
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      showToast('❌ データの取得に失敗しました');
+    });
   }
 
   function isRecordImpulse(r) {
