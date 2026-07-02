@@ -1019,7 +1019,7 @@
         </div>
 
         <div style="height:16px"></div>
-        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v2.0.1 · データはこのデバイスのみに保存</p>
+        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v2.0.2 · データはこのデバイスのみに保存</p>
         <div style="height:24px"></div>
       </div>
     </div>
@@ -1978,6 +1978,9 @@
       textMuted: '#7c9688',
       border: 'rgba(128, 189, 158, 0.25)',
       glass: 'rgba(255, 255, 255, 0.92)',
+      chartLine: '#FF420E',
+      chartGradStart: 'rgba(255, 66, 14, 0.35)',
+      chartGradEnd: 'rgba(255, 66, 14, 0.01)',
       chartColors: ['#FF420E', '#F98866', '#80BD9E', '#89DA59', '#e85c3f', '#c9776b']
     },
     B: {
@@ -1991,7 +1994,10 @@
       textMuted: 'rgba(255, 255, 255, 0.48)',
       border: 'rgba(230, 223, 68, 0.25)',
       glass: 'rgba(6, 56, 82, 0.95)',
-      chartColors: ['#063852', '#011A27', '#F0810F', '#E6DF44', '#1f536e', '#f5993b']
+      chartLine: '#E6DF44',
+      chartGradStart: 'rgba(230, 223, 68, 0.35)',
+      chartGradEnd: 'rgba(230, 223, 68, 0.01)',
+      chartColors: ['#F0810F', '#E6DF44', '#00d2d3', '#ff7675', '#1abc9c', '#a29bfe']
     },
     C: {
       accent: '#3F6C45',
@@ -2004,6 +2010,9 @@
       textMuted: '#7f6f6e',
       border: 'rgba(63, 108, 69, 0.25)',
       glass: 'rgba(255, 255, 255, 0.92)',
+      chartLine: '#3F6C45',
+      chartGradStart: 'rgba(63, 108, 69, 0.35)',
+      chartGradEnd: 'rgba(63, 108, 69, 0.01)',
       chartColors: ['#50312F', '#3F6C45', '#E4EA8C', '#CB0000', '#7a4f4d', '#5a8f61']
     },
     D: {
@@ -2017,7 +2026,10 @@
       textMuted: '#8a6458',
       border: 'rgba(102, 46, 28, 0.2)',
       glass: 'rgba(251, 249, 244, 0.92)',
-      chartColors: ['#AF4425', '#662E1C', '#EBDCB2', '#C9A66B', '#c96447', '#874b3a']
+      chartLine: '#AF4425',
+      chartGradStart: 'rgba(175, 68, 37, 0.35)',
+      chartGradEnd: 'rgba(175, 68, 37, 0.01)',
+      chartColors: ['#AF4425', '#662E1C', '#EBDCB2', '#C9A66B', '#c96447', '#e8c495']
     }
   };
 
@@ -2059,6 +2071,10 @@
     applyTheme(themeId);
   }
 
+  function getCSSVar(varName) {
+    return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+  }
+
   function renderCatChart(recs) {
     const ctx = document.getElementById('catChart').getContext('2d');
     const totals = {};
@@ -2078,7 +2094,7 @@
       options: {
         cutout: '75%', responsive: true, maintainAspectRatio: false,
         plugins: {
-          legend: { position:'right', labels:{ color:'rgba(45,58,49,0.72)', font:{size:11,family:"'Noto Sans JP'"}, padding:10, boxWidth:12, boxHeight:12 } },
+          legend: { position:'right', labels:{ color: getCSSVar('--text-secondary') || 'rgba(45,58,49,0.72)', font:{size:11,family:"'Noto Sans JP'"}, padding:10, boxWidth:12, boxHeight:12 } },
           tooltip: { callbacks: { label: ctx=>' ¥'+ctx.raw.toLocaleString('ja-JP') } }
         }
       }
@@ -2184,10 +2200,14 @@
     
     if (dailyChart) dailyChart.destroy();
     
-    // 美しいグラデーションの作成
+    // 美しいグラデーションの作成（テーマの値に連動）
+    const activeTheme = settings.theme || 'A';
+    const tParams = THEME_PALETTES[activeTheme] || THEME_PALETTES.A;
+    const borderCol = tParams.chartLine || '#4F6457';
+    
     const gradient = ctx.createLinearGradient(0, 0, 0, 180);
-    gradient.addColorStop(0, 'rgba(79,100,87,0.35)');
-    gradient.addColorStop(1, 'rgba(79,100,87,0.01)');
+    gradient.addColorStop(0, tParams.chartGradStart || 'rgba(79,100,87,0.35)');
+    gradient.addColorStop(1, tParams.chartGradEnd || 'rgba(79,100,87,0.01)');
     
     dailyChart = new Chart(ctx, {
       type: 'line',
@@ -2195,13 +2215,13 @@
         labels,
         datasets: [{
           data,
-          borderColor: '#4F6457',
+          borderColor: borderCol,
           borderWidth: 2.5,
           backgroundColor: gradient,
           fill: true,
           tension: 0.35,
-          pointBackgroundColor: '#4F6457',
-          pointBorderColor: '#fff',
+          pointBackgroundColor: borderCol,
+          pointBorderColor: tParams.bgCard || '#fff',
           pointBorderWidth: 1.5,
           pointRadius: data.length > 31 ? 0 : 3,
           pointHoverRadius: 5
@@ -2221,7 +2241,7 @@
         scales: {
           x: {
             ticks: {
-              color: 'rgba(45,58,49,0.56)',
+              color: getCSSVar('--text-muted') || 'rgba(45,58,49,0.56)',
               font: { size: 10, family: "'Noto Sans JP'" },
               maxTicksLimit: currentPeriod === 'week' ? 7 : 8
             },
@@ -2230,11 +2250,11 @@
           },
           y: {
             ticks: {
-              color: 'rgba(45,58,49,0.56)',
+              color: getCSSVar('--text-muted') || 'rgba(45,58,49,0.56)',
               font: { size: 10, family: "'Noto Sans JP'" },
               callback: v => '¥' + v.toLocaleString()
             },
-            grid: { color: 'rgba(172,208,192,0.18)' },
+            grid: { color: getCSSVar('--border') || 'rgba(172,208,192,0.18)' },
             border: { display: false }
           }
         }
