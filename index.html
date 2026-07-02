@@ -812,13 +812,16 @@
         <h1>履歴</h1>
         <p class="subtitle">すべての決済記録</p>
       </div>
-      <div class="section" style="padding-bottom: 8px;">
-        <select id="historySortSelect" class="form-input" onchange="renderHistory()" style="background:var(--bg-secondary); cursor:pointer; height:auto; padding:10px 12px; font-size:13px;">
+      <div class="section" style="padding-bottom: 8px; display: flex; gap: 8px;">
+        <select id="historySortSelect" class="form-input" onchange="renderHistory()" style="background:var(--bg-secondary); cursor:pointer; height:auto; padding:10px 12px; font-size:13px; flex: 1;">
           <option value="date-desc">📅 日付: 新しい順</option>
           <option value="date-asc">📅 日付: 古い順</option>
-          <option value="category">🗂️ カテゴリ別</option>
           <option value="impulse-desc">🚨 衝動買い優先</option>
           <option value="necessary-desc">✅ 必要支出優先</option>
+        </select>
+        <select id="historyFilterSelect" class="form-input" onchange="renderHistory()" style="background:var(--bg-secondary); cursor:pointer; height:auto; padding:10px 12px; font-size:13px; flex: 1;">
+          <option value="all">🔍 すべてのカテゴリ</option>
+          <!-- JSで動的に追加 -->
         </select>
       </div>
       <div class="section">
@@ -960,7 +963,7 @@
         </div>
 
         <div style="height:16px"></div>
-        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v1.9.6 · データはこのデバイスのみに保存</p>
+        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v1.9.7 · データはこのデバイスのみに保存</p>
         <div style="height:24px"></div>
       </div>
     </div>
@@ -1492,7 +1495,10 @@
     document.getElementById(name + 'Screen').classList.add('active');
     document.getElementById('nav-' + name).classList.add('active');
     if (name === 'analysis') renderAnalysis();
-    if (name === 'history')  renderHistory();
+    if (name === 'history') {
+      populateHistoryFilters();
+      renderHistory();
+    }
     if (name === 'settings') renderCatEditorList();
   }
 
@@ -1938,30 +1944,52 @@
   }
 
   // ===== HISTORY =====
+  function populateHistoryFilters() {
+    const select = document.getElementById('historyFilterSelect');
+    if (!select) return;
+    const currentVal = select.value || 'all';
+    
+    let html = '<option value="all">🔍 すべてのカテゴリ</option>';
+    categories.forEach(cat => {
+      html += `<option value="${cat.id}">${cat.emoji} ${cat.label}</option>`;
+    });
+    select.innerHTML = html;
+    
+    // 選択されていた値があれば保持（カテゴリ追加時などの再描画用）
+    if ([...select.options].some(opt => opt.value === currentVal)) {
+      select.value = currentVal;
+    } else {
+      select.value = 'all';
+    }
+  }
+
   function renderHistory() {
+    const filterSelect = document.getElementById('historyFilterSelect');
+    const filterVal = filterSelect ? filterSelect.value : 'all';
     const sortSelect = document.getElementById('historySortSelect');
     const sortVal = sortSelect ? sortSelect.value : 'date-desc';
-    let sorted = [...records];
     
+    let items = [...records];
+    
+    // カテゴリフィルターの適用
+    if (filterVal !== 'all') {
+      items = items.filter(r => r.catId === filterVal);
+    }
+    
+    // ソート処理
     if (sortVal === 'date-desc') {
-      sorted.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      items.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     } else if (sortVal === 'date-asc') {
-      sorted.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-    } else if (sortVal === 'category') {
-      sorted.sort((a, b) => {
-        const catA = getCatById(a.catId)?.label || '';
-        const catB = getCatById(b.catId)?.label || '';
-        return catA.localeCompare(catB, 'ja');
-      });
+      items.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
     } else if (sortVal === 'impulse-desc') {
-      sorted.sort((a, b) => {
+      items.sort((a, b) => {
         const isImpA = isRecordImpulse(a) ? 1 : 0;
         const isImpB = isRecordImpulse(b) ? 1 : 0;
         if (isImpA !== isImpB) return isImpB - isImpA;
         return new Date(b.timestamp) - new Date(a.timestamp);
       });
     } else if (sortVal === 'necessary-desc') {
-      sorted.sort((a, b) => {
+      items.sort((a, b) => {
         const isImpA = isRecordImpulse(a) ? 1 : 0;
         const isImpB = isRecordImpulse(b) ? 1 : 0;
         if (isImpA !== isImpB) return isImpA - isImpB;
@@ -1969,7 +1997,7 @@
       });
     }
     
-    renderTxList('allTxList', sorted);
+    renderTxList('allTxList', items);
   }
 
   // ===== CATEGORY EDITOR =====
