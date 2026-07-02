@@ -1895,32 +1895,156 @@
   }
 
   function renderDailyChart(recs) {
-    const ctx = document.getElementById('dailyChart').getContext('2d');
-    const days = currentPeriod==='week'?7:currentPeriod==='month'?30:Math.min(30,calcDayRange(recs));
-    const dayMap = {};
-    for (let i=days-1;i>=0;i--) { const d=new Date();d.setDate(d.getDate()-i);dayMap[d.toDateString()]=0; }
-    recs.forEach(r => { const k=new Date(r.timestamp).toDateString();if(k in dayMap)dayMap[k]+=r.amount; });
-    const labels = Object.keys(dayMap).map(k=>{const d=new Date(k);return`${d.getMonth()+1}/${d.getDate()}`;});
-    const data = Object.values(dayMap);
+    const canvas = document.getElementById('dailyChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    
+    let labels = [];
+    let data = [];
+    
+    if (currentPeriod === 'week' || currentPeriod === 'month') {
+      const days = currentPeriod === 'week' ? 7 : 30;
+      const dayMap = {};
+      
+      // 過去N日間の初期化
+      for (let i = days - 1; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        dayMap[d.toDateString()] = 0;
+      }
+      
+      // 1日の支出を合算
+      recs.forEach(r => {
+        const k = new Date(r.timestamp).toDateString();
+        if (k in dayMap) dayMap[k] += r.amount;
+      });
+      
+      labels = Object.keys(dayMap).map(k => {
+        const d = new Date(k);
+        return `${d.getMonth() + 1}/${d.getDate()}`;
+      });
+      data = Object.values(dayMap);
+      
+    } else {
+      // 全期間 (all) の集集計
+      if (recs.length === 0) {
+        labels = ['データなし'];
+        data = [0];
+      } else {
+        const dayRange = calcDayRange(recs);
+        
+        if (dayRange <= 30) {
+          // 30日以内の場合は日別集計
+          const dayMap = {};
+          const minDate = new Date(Math.min(...recs.map(r => new Date(r.timestamp))));
+          
+          for (let d = new Date(minDate); d <= new Date(); d.setDate(d.getDate() + 1)) {
+            dayMap[d.toDateString()] = 0;
+          }
+          
+          recs.forEach(r => {
+            const k = new Date(r.timestamp).toDateString();
+            if (k in dayMap) dayMap[k] += r.amount;
+          });
+          
+          labels = Object.keys(dayMap).map(k => {
+            const d = new Date(k);
+            return `${d.getMonth() + 1}/${d.getDate()}`;
+          });
+          data = Object.values(dayMap);
+          
+        } else {
+          // 30日を超える場合は年月単位（例: '2025/01'）で集計
+          const monthMap = {};
+          const timestamps = recs.map(r => new Date(r.timestamp).getTime());
+          const minDate = new Date(Math.min(...timestamps));
+          const maxDate = new Date();
+          
+          let cur = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+          const end = new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
+          
+          while (cur <= end) {
+            const key = `${cur.getFullYear()}/${String(cur.getMonth() + 1).padStart(2, '0')}`;
+            monthMap[key] = 0;
+            cur.setMonth(cur.getMonth() + 1);
+          }
+          
+          recs.forEach(r => {
+            const d = new Date(r.timestamp);
+            const key = `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+            if (key in monthMap) monthMap[key] += r.amount;
+          });
+          
+          labels = Object.keys(monthMap);
+          data = Object.values(monthMap);
+        }
+      }
+    }
+    
     if (dailyChart) dailyChart.destroy();
+    
+    // 美しいグラデーションの作成
+    const gradient = ctx.createLinearGradient(0, 0, 0, 180);
+    gradient.addColorStop(0, 'rgba(79,100,87,0.35)');
+    gradient.addColorStop(1, 'rgba(79,100,87,0.01)');
+    
     dailyChart = new Chart(ctx, {
-      type: 'bar',
-      data: { labels, datasets: [{ data, backgroundColor: data.map(v=>v>0?'rgba(79,100,87,0.8)':'rgba(79,100,87,0.15)'), borderRadius:6, borderSkipped:false }] },
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          data,
+          borderColor: '#4F6457',
+          borderWidth: 2.5,
+          backgroundColor: gradient,
+          fill: true,
+          tension: 0.35,
+          pointBackgroundColor: '#4F6457',
+          pointBorderColor: '#fff',
+          pointBorderWidth: 1.5,
+          pointRadius: data.length > 31 ? 0 : 3,
+          pointHoverRadius: 5
+        }]
+      },
       options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend:{display:false}, tooltip:{callbacks:{label:ctx=>' ¥'+ctx.raw.toLocaleString('ja-JP')}} },
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => ' ¥' + ctx.raw.toLocaleString('ja-JP')
+            }
+          }
+        },
         scales: {
-          x: { ticks:{color:'rgba(45,58,49,0.48)',font:{size:10},maxTicksLimit:8}, grid:{display:false}, border:{display:false} },
-          y: { ticks:{color:'rgba(45,58,49,0.48)',font:{size:10},callback:v=>'¥'+v.toLocaleString()}, grid:{color:'rgba(172,208,192,0.2)'}, border:{display:false} }
+          x: {
+            ticks: {
+              color: 'rgba(45,58,49,0.56)',
+              font: { size: 10, family: "'Noto Sans JP'" },
+              maxTicksLimit: currentPeriod === 'week' ? 7 : 8
+            },
+            grid: { display: false },
+            border: { display: false }
+          },
+          y: {
+            ticks: {
+              color: 'rgba(45,58,49,0.56)',
+              font: { size: 10, family: "'Noto Sans JP'" },
+              callback: v => '¥' + v.toLocaleString()
+            },
+            grid: { color: 'rgba(172,208,192,0.18)' },
+            border: { display: false }
+          }
         }
       }
     });
   }
-
+  
   function calcDayRange(recs) {
     if (!recs.length) return 7;
-    const min = Math.min(...recs.map(r=>new Date(r.timestamp)));
-    return Math.ceil((Date.now()-min)/86400000)+1;
+    const min = Math.min(...recs.map(r => new Date(r.timestamp)));
+    return Math.ceil((Date.now() - min) / 86400000) + 1;
   }
 
   function renderImpulseRanking(recs) {
