@@ -1019,7 +1019,7 @@
         </div>
 
         <div style="height:16px"></div>
-        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v2.0.0 · データはこのデバイスのみに保存</p>
+        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v2.0.1 · データはこのデバイスのみに保存</p>
         <div style="height:24px"></div>
       </div>
     </div>
@@ -1971,28 +1971,52 @@
       accent: '#FF420E',
       accentLight: '#F98866',
       bgPrimary: '#f4f8f6',
+      bgSecondary: '#ffffff',
+      bgCard: '#ffffff',
+      textPrimary: '#1e382b',
+      textSecondary: '#476655',
+      textMuted: '#7c9688',
       border: 'rgba(128, 189, 158, 0.25)',
+      glass: 'rgba(255, 255, 255, 0.92)',
       chartColors: ['#FF420E', '#F98866', '#80BD9E', '#89DA59', '#e85c3f', '#c9776b']
     },
     B: {
-      accent: '#063852',
+      accent: '#E6DF44',
       accentLight: '#F0810F',
-      bgPrimary: '#f1f5f7',
-      border: 'rgba(6, 56, 82, 0.18)',
+      bgPrimary: '#011A27',
+      bgSecondary: '#063852',
+      bgCard: '#063852',
+      textPrimary: '#ffffff',
+      textSecondary: 'rgba(255, 255, 255, 0.75)',
+      textMuted: 'rgba(255, 255, 255, 0.48)',
+      border: 'rgba(230, 223, 68, 0.25)',
+      glass: 'rgba(6, 56, 82, 0.95)',
       chartColors: ['#063852', '#011A27', '#F0810F', '#E6DF44', '#1f536e', '#f5993b']
     },
     C: {
-      accent: '#50312F',
-      accentLight: '#3F6C45',
-      bgPrimary: '#f7f8f4',
-      border: 'rgba(63, 108, 69, 0.2)',
+      accent: '#3F6C45',
+      accentLight: '#50312F',
+      bgPrimary: '#f7f8f0',
+      bgSecondary: '#ffffff',
+      bgCard: '#ffffff',
+      textPrimary: '#352120',
+      textSecondary: '#4e3a39',
+      textMuted: '#7f6f6e',
+      border: 'rgba(63, 108, 69, 0.25)',
+      glass: 'rgba(255, 255, 255, 0.92)',
       chartColors: ['#50312F', '#3F6C45', '#E4EA8C', '#CB0000', '#7a4f4d', '#5a8f61']
     },
     D: {
       accent: '#AF4425',
       accentLight: '#C9A66B',
-      bgPrimary: '#fbfaf6',
-      border: 'rgba(201, 166, 107, 0.3)',
+      bgPrimary: '#EBDCB2',
+      bgSecondary: '#fbf9f4',
+      bgCard: '#fbf9f4',
+      textPrimary: '#3e1b10',
+      textSecondary: '#662E1C',
+      textMuted: '#8a6458',
+      border: 'rgba(102, 46, 28, 0.2)',
+      glass: 'rgba(251, 249, 244, 0.92)',
       chartColors: ['#AF4425', '#662E1C', '#EBDCB2', '#C9A66B', '#c96447', '#874b3a']
     }
   };
@@ -2003,9 +2027,16 @@
     root.style.setProperty('--accent', t.accent);
     root.style.setProperty('--accent-light', t.accentLight);
     root.style.setProperty('--bg-primary', t.bgPrimary);
+    root.style.setProperty('--bg-secondary', t.bgSecondary);
+    root.style.setProperty('--bg-card', t.bgCard);
+    root.style.setProperty('--text-primary', t.textPrimary);
+    root.style.setProperty('--text-secondary', t.textSecondary);
+    root.style.setProperty('--text-muted', t.textMuted);
     root.style.setProperty('--border', t.border);
+    root.style.setProperty('--glass', t.glass);
     root.style.setProperty('--accent-glow', t.accent + '26');
     root.style.setProperty('--glass-border', t.accentLight + '73');
+    root.style.setProperty('--bg-card-hover', t.bgSecondary === '#ffffff' ? '#eef4f1' : t.accent + '15');
 
     document.querySelectorAll('.theme-select-btn').forEach(btn => {
       btn.style.borderColor = 'var(--border)';
