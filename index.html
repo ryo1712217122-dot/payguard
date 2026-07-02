@@ -759,9 +759,16 @@
       </div>
 
       <div class="period-tabs">
-        <button class="period-tab active" id="tabWeek" onclick="setPeriod('week')">今週</button>
-        <button class="period-tab" id="tabMonth" onclick="setPeriod('month')">今月</button>
+        <button class="period-tab active" id="tabWeek" onclick="setPeriod('week')">週別</button>
+        <button class="period-tab" id="tabMonth" onclick="setPeriod('month')">月別</button>
         <button class="period-tab" id="tabAll" onclick="setPeriod('all')">全期間</button>
+      </div>
+
+      <!-- 期間ナビゲーション -->
+      <div id="periodNav" style="display:flex; justify-content:space-between; align-items:center; margin: 0 20px 12px; background:var(--glass); border:1px solid var(--glass-border); border-radius:var(--radius-sm); padding:6px 12px; font-size:13px;">
+        <button onclick="navigatePeriod(-1)" style="background:none; border:none; color:var(--accent); font-weight:700; cursor:pointer; padding:6px; -webkit-tap-highlight-color:transparent;">◀ 前の期間</button>
+        <span id="periodLabel" style="font-weight:600; color:var(--text-primary);"></span>
+        <button onclick="navigatePeriod(1)" style="background:none; border:none; color:var(--accent); font-weight:700; cursor:pointer; padding:6px; -webkit-tap-highlight-color:transparent;">次の期間 ▶</button>
       </div>
 
       <div class="period-summary">
@@ -963,7 +970,7 @@
         </div>
 
         <div style="height:16px"></div>
-        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v1.9.7 · データはこのデバイスのみに保存</p>
+        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v1.9.8 · データはこのデバイスのみに保存</p>
         <div style="height:24px"></div>
       </div>
     </div>
@@ -1383,6 +1390,7 @@
   let catChart    = null;
   let dailyChart  = null;
   let currentPeriod = 'month';
+  let currentBaseDate = new Date();
   // cat edit modal state
   let editingCatId   = null;
   let selectedEmoji  = '🛍️';
@@ -1828,22 +1836,70 @@
   // ===== ANALYSIS =====
   function setPeriod(p) {
     currentPeriod = p;
+    currentBaseDate = new Date(); // リセット
     document.querySelectorAll('.period-tab').forEach(t => t.classList.remove('active'));
     document.getElementById('tab'+p.charAt(0).toUpperCase()+p.slice(1)).classList.add('active');
     renderAnalysis();
   }
-  function getPeriodRecords() {
-    const now = new Date();
+
+  function navigatePeriod(direction) {
     if (currentPeriod === 'week') {
-      const s = new Date(now); s.setDate(now.getDate()-7);
-      return records.filter(r => new Date(r.timestamp) >= s);
+      currentBaseDate.setDate(currentBaseDate.getDate() + (7 * direction));
     } else if (currentPeriod === 'month') {
-      const s = new Date(now.getFullYear(), now.getMonth(), 1);
-      return records.filter(r => new Date(r.timestamp) >= s);
+      currentBaseDate.setMonth(currentBaseDate.getMonth() + direction);
+    }
+    renderAnalysis();
+  }
+
+  function getPeriodRecords() {
+    if (currentPeriod === 'week') {
+      const end = new Date(currentBaseDate);
+      end.setHours(23, 59, 59, 999);
+      const start = new Date(currentBaseDate);
+      start.setDate(end.getDate() - 6);
+      start.setHours(0, 0, 0, 0);
+      return records.filter(r => {
+        const t = new Date(r.timestamp);
+        return t >= start && t <= end;
+      });
+    } else if (currentPeriod === 'month') {
+      const start = new Date(currentBaseDate.getFullYear(), currentBaseDate.getMonth(), 1, 0, 0, 0, 0);
+      const end = new Date(currentBaseDate.getFullYear(), currentBaseDate.getMonth() + 1, 0, 23, 59, 59, 999);
+      return records.filter(r => {
+        const t = new Date(r.timestamp);
+        return t >= start && t <= end;
+      });
     }
     return records;
   }
+
+  function updatePeriodLabel() {
+    const nav = document.getElementById('periodNav');
+    const label = document.getElementById('periodLabel');
+    if (!nav || !label) return;
+    
+    if (currentPeriod === 'all') {
+      nav.style.display = 'none';
+      return;
+    }
+    
+    nav.style.display = 'flex';
+    
+    if (currentPeriod === 'week') {
+      const end = new Date(currentBaseDate);
+      const start = new Date(currentBaseDate);
+      start.setDate(end.getDate() - 6);
+      
+      const startStr = `${start.getMonth() + 1}/${start.getDate()}`;
+      const endStr = `${end.getMonth() + 1}/${end.getDate()}`;
+      label.textContent = `${start.getFullYear()}年 ${startStr} 〜 ${endStr}`;
+    } else if (currentPeriod === 'month') {
+      label.textContent = `${currentBaseDate.getFullYear()}年 ${currentBaseDate.getMonth() + 1}月`;
+    }
+  }
+
   function renderAnalysis() {
+    updatePeriodLabel();
     const recs = getPeriodRecords();
     const impulse = recs.filter(r => isRecordImpulse(r));
     const total  = recs.reduce((s,r)=>s+r.amount,0);
@@ -1903,14 +1959,24 @@
     let data = [];
     
     if (currentPeriod === 'week' || currentPeriod === 'month') {
-      const days = currentPeriod === 'week' ? 7 : 30;
       const dayMap = {};
       
-      // 過去N日間の初期化
-      for (let i = days - 1; i >= 0; i--) {
-        const d = new Date();
-        d.setDate(d.getDate() - i);
-        dayMap[d.toDateString()] = 0;
+      if (currentPeriod === 'week') {
+        // 過去7日間の初期化（基準日から遡って）
+        for (let i = 6; i >= 0; i--) {
+          const d = new Date(currentBaseDate);
+          d.setDate(d.getDate() - i);
+          dayMap[d.toDateString()] = 0;
+        }
+      } else {
+        // 選択された月の全日（1日〜末日）の初期化
+        const year = currentBaseDate.getFullYear();
+        const month = currentBaseDate.getMonth();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        for (let i = 1; i <= daysInMonth; i++) {
+          const d = new Date(year, month, i);
+          dayMap[d.toDateString()] = 0;
+        }
       }
       
       // 1日の支出を合算
@@ -1926,7 +1992,7 @@
       data = Object.values(dayMap);
       
     } else {
-      // 全期間 (all) の集集計
+      // 全期間 (all) の集計
       if (recs.length === 0) {
         labels = ['データなし'];
         data = [0];
