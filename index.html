@@ -797,9 +797,23 @@
         </div>
       </div>
 
-      <div class="chart-container">
+      <div class="chart-container" style="display:flex; flex-direction:column; gap:8px;">
         <div class="chart-title">日別推移</div>
-        <div class="chart-wrapper"><canvas id="dailyChart"></canvas></div>
+        <div class="chart-wrapper" style="height:200px;"><canvas id="dailyChart"></canvas></div>
+      </div>
+
+      <!-- 衝動買いの時間帯分析 -->
+      <div class="chart-container" style="display:flex; flex-direction:column; gap:8px;">
+        <div class="chart-title">衝動買いの時間帯</div>
+        <div class="chart-wrapper" style="height:180px;"><canvas id="hourlyChart"></canvas></div>
+      </div>
+
+      <!-- 衝動買いの言い訳ランキング -->
+      <div class="chart-container" style="display:flex; flex-direction:column; gap:8px;">
+        <div class="chart-title">衝動買いの言い訳ランキング</div>
+        <div id="impulseReasonList" style="display:flex; flex-direction:column; gap:10px; margin-top:8px;">
+          <!-- JSで動的に追加 -->
+        </div>
       </div>
 
       <div class="section">
@@ -1438,6 +1452,7 @@
   let selectedPayMethod = 'paypay';
   let catChart    = null;
   let dailyChart  = null;
+  let hourlyChart = null;
   let currentPeriod = 'month';
   let currentBaseDate = new Date();
   // cat edit modal state
@@ -1703,9 +1718,9 @@
         <label class="form-label" for="recordModeReason">なぜこの決済をするか？</label>
         <textarea class="form-input" id="recordModeReason" placeholder="例：夕食の食材をまとめ買い" rows="3"></textarea>
       </div>
-      <div class="submit-row">
+       <div class="submit-row">
         <button class="btn-secondary" onclick="closeRecordMode()">キャンセル</button>
-        <button class="btn-primary" onclick="submitRecordMode('${appKey}')">記録して決済へ →</button>
+        <button class="btn-primary" id="recordModeSubmitBtn" onclick="submitRecordMode('${appKey}')">記録して決済へ →</button>
       </div>
     `;
     currentAmount = ''; selectedCatId = null; selectedPayMethod = appKey;
@@ -1716,17 +1731,36 @@
   function closeRecordMode() {
     document.getElementById('recordModeScreen').classList.remove('open');
     window.history.replaceState({}, '', window.location.pathname);
+    resetCooldownState();
   }
+
+  let activeCooldown = {
+    timer: null,
+    timeRemaining: 0,
+    target: null,
+    confirmed: false
+  };
 
   function submitRecordMode(appKey) {
     const reason = (document.getElementById('recordModeReason')?.value || '').trim();
     if (!currentAmount || currentAmount === '0') { showToast('⚠️ 金額を入力してください'); return; }
     if (!selectedCatId) { showToast('⚠️ カテゴリを選択してください'); return; }
     if (!reason) { showToast('⚠️ 理由を入力してください'); return; }
-    saveRecord(parseInt(currentAmount), selectedCatId, reason, appKey, isCurrentRecordImpulse);
+
+    const isImpulse = isCurrentRecordImpulse;
+    const amount = parseInt(currentAmount);
+
+    if (isImpulse && amount >= 3000 && !activeCooldown.confirmed) {
+      triggerCooldown('shortcut', appKey);
+      return;
+    }
+
+    saveRecord(amount, selectedCatId, reason, appKey, isImpulse);
     closeRecordMode();
     updateDashboard();
     showToast('✅ 記録しました！');
+    resetCooldownState();
+
     const appUrl = PAYMENT_METHODS[appKey]?.url;
     if (appUrl) setTimeout(() => { window.location.href = appUrl; }, 400);
   }
@@ -1756,13 +1790,88 @@
     if (!currentAmount || currentAmount === '0') { showToast('⚠️ 金額を入力してください'); return; }
     if (!selectedCatId) { showToast('⚠️ カテゴリを選択してください'); return; }
     if (!reason) { showToast('⚠️ 理由を入力してください'); return; }
-    saveRecord(parseInt(currentAmount), selectedCatId, reason, selectedPayMethod, isCurrentRecordImpulse);
+
+    const isImpulse = isCurrentRecordImpulse;
+    const amount = parseInt(currentAmount);
+
+    if (isImpulse && amount >= 3000 && !activeCooldown.confirmed) {
+      triggerCooldown('normal');
+      return;
+    }
+
+    saveRecord(amount, selectedCatId, reason, selectedPayMethod, isImpulse);
     closeRecordSheet();
     updateDashboard();
     showToast('✅ 記録しました！');
-    // Suica/Cash: no auto-launch
+    resetCooldownState();
+
     const pm = PAYMENT_METHODS[selectedPayMethod];
     if (pm?.url && pm.autoLaunch) setTimeout(() => { window.location.href = pm.url; }, 500);
+  }
+
+  function triggerCooldown(target, appKey) {
+    resetCooldownState();
+
+    const btnId = target === 'normal' ? 'submitBtn' : 'recordModeSubmitBtn';
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+
+    activeCooldown.target = target;
+    activeCooldown.timeRemaining = 5;
+    activeCooldown.confirmed = false;
+
+    btn.disabled = true;
+    const originalText = btn.textContent;
+    btn.textContent = `頭を冷やし中... (${activeCooldown.timeRemaining})`;
+
+    let msgEl = document.getElementById(btnId + 'CooldownMsg');
+    if (!msgEl) {
+      msgEl = document.createElement('div');
+      msgEl.id = btnId + 'CooldownMsg';
+      msgEl.style.cssText = 'color: #ff4757; font-size: 11px; text-align: center; margin-top: 8px; font-weight: bold; background: rgba(231,76,60,0.06); padding: 6px; border-radius: 8px; border: 1px dashed rgba(231,76,60,0.3); line-height: 1.4;';
+      msgEl.textContent = '🚨 冷静になって、もう一度だけ本当に必要か考えてみましょう。';
+      btn.parentNode.insertBefore(msgEl, btn);
+    } else {
+      msgEl.style.display = 'block';
+    }
+
+    activeCooldown.timer = setInterval(() => {
+      activeCooldown.timeRemaining--;
+      if (activeCooldown.timeRemaining > 0) {
+        btn.textContent = `頭を冷やし中... (${activeCooldown.timeRemaining})`;
+      } else {
+        clearInterval(activeCooldown.timer);
+        activeCooldown.timer = null;
+        activeCooldown.confirmed = true;
+        btn.disabled = false;
+        btn.textContent = target === 'normal' ? '本当に記録する ✓' : '本当に記録して決済へ →';
+      }
+    }, 1000);
+  }
+
+  function resetCooldownState() {
+    if (activeCooldown.timer) {
+      clearInterval(activeCooldown.timer);
+      activeCooldown.timer = null;
+    }
+    activeCooldown.confirmed = false;
+    activeCooldown.timeRemaining = 0;
+    activeCooldown.target = null;
+
+    const normalBtn = document.getElementById('submitBtn');
+    if (normalBtn) {
+      normalBtn.disabled = false;
+      normalBtn.textContent = '記録する ✓';
+      const msg = document.getElementById('submitBtnCooldownMsg');
+      if (msg) msg.style.display = 'none';
+    }
+    const shortcutBtn = document.getElementById('recordModeSubmitBtn');
+    if (shortcutBtn) {
+      shortcutBtn.disabled = false;
+      shortcutBtn.textContent = '記録して決済へ →';
+      const msg = document.getElementById('recordModeSubmitBtnCooldownMsg');
+      if (msg) msg.style.display = 'none';
+    }
   }
 
   function saveRecord(amount, catId, reason, payMethod, isImpulse) {
@@ -1963,6 +2072,8 @@
     document.getElementById('donutValue').textContent = '¥'+total.toLocaleString('ja-JP');
     renderCatChart(recs);
     renderDailyChart(recs);
+    renderHourlyChart(recs);
+    renderReasonRanking(recs);
     renderImpulseRanking(recs);
   }
 
@@ -2063,6 +2174,123 @@
     // redraw charts if initialized
     if (catChart) renderCatChart(getPeriodRecords());
     if (dailyChart) renderDailyChart(getPeriodRecords());
+    if (hourlyChart) renderHourlyChart(getPeriodRecords());
+  }
+
+  function renderReasonRanking(recs) {
+    const container = document.getElementById('impulseReasonList');
+    if (!container) return;
+
+    const impulseRecs = recs.filter(r => isRecordImpulse(r));
+    if (impulseRecs.length === 0) {
+      container.innerHTML = `<div class="empty-state" style="padding: 10px 0;"><div class="es-text" style="font-size:12px;">衝動買いのデータがありません</div></div>`;
+      return;
+    }
+
+    const keywords = ['ご褒美', 'ストレス', 'なんとなく', 'セール', '割引', '限定', '衝動', '欲しい', 'ノリ', 'つい'];
+    const counts = {};
+    keywords.forEach(kw => counts[kw] = 0);
+
+    impulseRecs.forEach(r => {
+      const reason = r.reason || '';
+      keywords.forEach(kw => {
+        if (reason.includes(kw)) {
+          counts[kw] += 1;
+        }
+      });
+    });
+
+    const sorted = Object.entries(counts)
+      .filter(([_, count]) => count > 0)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+
+    if (sorted.length === 0) {
+      container.innerHTML = `<div class="empty-state" style="padding: 10px 0;"><div class="es-text" style="font-size:12px;">特定のキーワード（ご褒美、ストレス等）を含むメモがありません</div></div>`;
+      return;
+    }
+
+    const maxCount = Math.max(...sorted.map(([_, count]) => count));
+
+    container.innerHTML = sorted.map(([kw, count], idx) => {
+      const pct = (count / maxCount) * 100;
+      return `
+        <div style="display:flex; flex-direction:column; gap:4px;">
+          <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--text-primary);">
+            <span style="font-weight:600;">${idx + 1}. ${kw}</span>
+            <span style="color:var(--text-secondary); font-weight:700;">${count}回</span>
+          </div>
+          <div style="width:100%; height:6px; background:var(--border); border-radius:3px; overflow:hidden;">
+            <div style="width:${pct}%; height:100%; background:var(--accent); border-radius:3px; transition: width 0.3s ease;"></div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function renderHourlyChart(recs) {
+    const canvas = document.getElementById('hourlyChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    const hoursData = Array(24).fill(0);
+    const impulseRecs = recs.filter(r => isRecordImpulse(r));
+    impulseRecs.forEach(r => {
+      const h = new Date(r.timestamp).getHours();
+      hoursData[h] += 1;
+    });
+
+    if (hourlyChart) hourlyChart.destroy();
+
+    const activeTheme = settings.theme || 'A';
+    const tParams = THEME_PALETTES[activeTheme] || THEME_PALETTES.A;
+    const barColor = tParams.chartLine || '#FF420E';
+
+    hourlyChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: Array.from({length: 24}, (_, i) => `${i}時`),
+        datasets: [{
+          data: hoursData,
+          backgroundColor: barColor,
+          borderRadius: 4,
+          borderWidth: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => ` ${ctx.raw}件`
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: {
+              color: getCSSVar('--text-muted') || 'rgba(45,58,49,0.56)',
+              font: { size: 9, family: "'Noto Sans JP'" },
+              maxTicksLimit: 12
+            },
+            grid: { display: false },
+            border: { display: false }
+          },
+          y: {
+            ticks: {
+              color: getCSSVar('--text-muted') || 'rgba(45,58,49,0.56)',
+              font: { size: 9, family: "'Noto Sans JP'" },
+              stepSize: 1,
+              precision: 0
+            },
+            grid: { color: getCSSVar('--border') || 'rgba(172,208,192,0.18)' },
+            border: { display: false }
+          }
+        }
+      }
+    });
   }
 
   function setTheme(themeId) {
