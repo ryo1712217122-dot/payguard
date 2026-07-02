@@ -835,16 +835,28 @@
         <h1>履歴</h1>
         <p class="subtitle">すべての決済記録</p>
       </div>
-      <div class="section" style="padding-bottom: 8px; display: flex; gap: 8px;">
-        <select id="historySortSelect" class="form-input" onchange="renderHistory()" style="background:var(--bg-secondary); cursor:pointer; height:auto; padding:10px 12px; font-size:13px; flex: 1;">
+      <div style="margin: 0 20px 12px;">
+        <div style="display:flex; gap: 8px; flex-wrap: wrap; width: 100%;">
+          <div style="display:flex; align-items:center; gap: 6px; flex: 1; min-width: 140px;">
+            <span style="font-size:11px; color:var(--text-muted); font-weight:600; white-space:nowrap;">カテゴリ:</span>
+            <select id="historyFilterSelect" class="form-input" onchange="renderHistory()" style="background:var(--bg-secondary); cursor:pointer; height:auto; padding:8px 10px; font-size:12px; flex: 1;">
+              <option value="all">すべてのカテゴリ</option>
+            </select>
+          </div>
+          <div style="display:flex; align-items:center; gap: 6px; flex: 1; min-width: 140px;">
+            <span style="font-size:11px; color:var(--text-muted); font-weight:600; white-space:nowrap;">決済方法:</span>
+            <select id="historyPayMethodFilterSelect" class="form-input" onchange="renderHistory()" style="background:var(--bg-secondary); cursor:pointer; height:auto; padding:8px 10px; font-size:12px; flex: 1;">
+              <option value="all">すべての決済方法</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="section" style="padding-top:0;">
+        <select id="historySortSelect" class="form-input" onchange="renderHistory()" style="background:var(--bg-secondary); cursor:pointer; height:auto; padding:10px 12px; font-size:13px; width: 100%;">
           <option value="date-desc">📅 日付: 新しい順</option>
           <option value="date-asc">📅 日付: 古い順</option>
           <option value="impulse-desc">🚨 衝動買い優先</option>
           <option value="necessary-desc">✅ 必要支出優先</option>
-        </select>
-        <select id="historyFilterSelect" class="form-input" onchange="renderHistory()" style="background:var(--bg-secondary); cursor:pointer; height:auto; padding:10px 12px; font-size:13px; flex: 1;">
-          <option value="all">🔍 すべてのカテゴリ</option>
-          <!-- JSで動的に追加 -->
         </select>
       </div>
       <div class="section">
@@ -1033,7 +1045,7 @@
         </div>
 
         <div style="height:16px"></div>
-        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v2.1.1 · データはこのデバイスのみに保存</p>
+        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v2.2.0 · データはこのデバイスのみに保存</p>
         <div style="height:24px"></div>
       </div>
     </div>
@@ -1569,7 +1581,7 @@
     document.getElementById('nav-' + name).classList.add('active');
     if (name === 'analysis') renderAnalysis();
     if (name === 'history') {
-      populateHistoryFilters();
+      updateHistoryFilterOptions();
       renderHistory();
     }
     if (name === 'settings') renderCatEditorList();
