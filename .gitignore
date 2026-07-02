@@ -18,3 +18,8 @@ Thumbs.db
 
 # Local dev server
 __pycache__/
+
+# Personal data (do not upload)
+*.csv
+convert_csv.js
+payguard_import.txt
