@@ -22,4 +22,5 @@ __pycache__/
 # Personal data (do not upload)
 *.csv
 convert_csv.js
+convert_csv.py
 payguard_import.txt
