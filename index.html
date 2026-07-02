@@ -812,6 +812,15 @@
         <h1>履歴</h1>
         <p class="subtitle">すべての決済記録</p>
       </div>
+      <div class="section" style="padding-bottom: 8px;">
+        <select id="historySortSelect" class="form-input" onchange="renderHistory()" style="background:var(--bg-secondary); cursor:pointer; height:auto; padding:10px 12px; font-size:13px;">
+          <option value="date-desc">📅 日付: 新しい順</option>
+          <option value="date-asc">📅 日付: 古い順</option>
+          <option value="category">🗂️ カテゴリ別</option>
+          <option value="impulse-desc">🚨 衝動買い優先</option>
+          <option value="necessary-desc">✅ 必要支出優先</option>
+        </select>
+      </div>
       <div class="section">
         <div class="tx-list" id="allTxList">
           <div class="empty-state">
@@ -951,7 +960,7 @@
         </div>
 
         <div style="height:16px"></div>
-        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v1.9.5 · データはこのデバイスのみに保存</p>
+        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v1.9.6 · データはこのデバイスのみに保存</p>
         <div style="height:24px"></div>
       </div>
     </div>
@@ -1398,7 +1407,21 @@
 
   // ===== DATA =====
   function loadData() {
-    try { records = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { records = []; }
+    try {
+      records = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      
+      // 既存データの衝動買いフラグをfalse（必要支出）に一括リセットするクレンジング
+      const hasCleansed = localStorage.getItem('payguard_impulse_cleansed_v1.9.6');
+      if (!hasCleansed && records.length > 0) {
+        records.forEach(r => {
+          r.isImpulse = false;
+        });
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+        localStorage.setItem('payguard_impulse_cleansed_v1.9.6', 'true');
+      }
+    } catch {
+      records = [];
+    }
   }
   function saveData() { localStorage.setItem(STORAGE_KEY, JSON.stringify(records)); }
 
@@ -1915,7 +1938,39 @@
   }
 
   // ===== HISTORY =====
-  function renderHistory() { renderTxList('allTxList', records); }
+  function renderHistory() {
+    const sortSelect = document.getElementById('historySortSelect');
+    const sortVal = sortSelect ? sortSelect.value : 'date-desc';
+    let sorted = [...records];
+    
+    if (sortVal === 'date-desc') {
+      sorted.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    } else if (sortVal === 'date-asc') {
+      sorted.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    } else if (sortVal === 'category') {
+      sorted.sort((a, b) => {
+        const catA = getCatById(a.catId)?.label || '';
+        const catB = getCatById(b.catId)?.label || '';
+        return catA.localeCompare(catB, 'ja');
+      });
+    } else if (sortVal === 'impulse-desc') {
+      sorted.sort((a, b) => {
+        const isImpA = isRecordImpulse(a) ? 1 : 0;
+        const isImpB = isRecordImpulse(b) ? 1 : 0;
+        if (isImpA !== isImpB) return isImpB - isImpA;
+        return new Date(b.timestamp) - new Date(a.timestamp);
+      });
+    } else if (sortVal === 'necessary-desc') {
+      sorted.sort((a, b) => {
+        const isImpA = isRecordImpulse(a) ? 1 : 0;
+        const isImpB = isRecordImpulse(b) ? 1 : 0;
+        if (isImpA !== isImpB) return isImpA - isImpB;
+        return new Date(b.timestamp) - new Date(a.timestamp);
+      });
+    }
+    
+    renderTxList('allTxList', sorted);
+  }
 
   // ===== CATEGORY EDITOR =====
   function renderCatEditorList() {
