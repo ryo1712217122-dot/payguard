@@ -826,6 +826,43 @@
           </div>
         </div>
       </div>
+      
+      <!-- 歴代最多支出記録（日・週・月） -->
+      <div class="section">
+        <div class="section-title">🏆 歴代最多支出記録</div>
+        <div class="card-grid" style="grid-template-columns: 1fr; gap: 10px; margin: 0 20px 16px; width: calc(100% - 40px);">
+          <!-- 最多支出日 -->
+          <div class="stat-card" style="display:flex; justify-content:space-between; align-items:center; padding: 14px 16px;">
+            <div>
+              <div class="label" style="font-size:10px; color:var(--text-muted);">💸 1日で最も使った日</div>
+              <div class="value" id="maxSpendDayVal" style="font-size: 20px; font-weight: 800; margin-top: 4px;">¥0</div>
+              <div class="sub" id="maxSpendDaySub" style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">データがありません</div>
+            </div>
+            <div id="maxSpendDayBadge" style="font-size:20px;">📅</div>
+          </div>
+          
+          <!-- 最多支出週 -->
+          <div class="stat-card" style="display:flex; justify-content:space-between; align-items:center; padding: 14px 16px;">
+            <div>
+              <div class="label" style="font-size:10px; color:var(--text-muted);">💸 1週間で最も使った週</div>
+              <div class="value" id="maxSpendWeekVal" style="font-size: 20px; font-weight: 800; margin-top: 4px;">¥0</div>
+              <div class="sub" id="maxSpendWeekSub" style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">データがありません</div>
+            </div>
+            <div id="maxSpendWeekBadge" style="font-size:20px;">🗓️</div>
+          </div>
+
+          <!-- 最多支出月 -->
+          <div class="stat-card" style="display:flex; justify-content:space-between; align-items:center; padding: 14px 16px;">
+            <div>
+              <div class="label" style="font-size:10px; color:var(--text-muted);">💸 1ヶ月で最も使った月</div>
+              <div class="value" id="maxSpendMonthVal" style="font-size: 20px; font-weight: 800; margin-top: 4px;">¥0</div>
+              <div class="sub" id="maxSpendMonthSub" style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">データがありません</div>
+            </div>
+            <div id="maxSpendMonthBadge" style="font-size:20px;">🍇</div>
+          </div>
+        </div>
+      </div>
+
       <div style="height:16px"></div>
     </div>
 
@@ -1069,7 +1106,7 @@
         </div>
 
         <div style="height:16px"></div>
-        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v2.3.1 · クラウド / ローカル連携対応</p>
+        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v2.4.0 · 歴代最多支出記録（日/週/月）対応</p>
         <div style="height:24px"></div>
       </div>
     </div>
@@ -2217,6 +2254,7 @@
     renderHourlyChart(recs);
     renderReasonRanking(recs);
     renderImpulseRanking(recs);
+    renderAllTimeHighs();
   }
 
   const THEME_PALETTES = {
@@ -2656,6 +2694,76 @@
       const nc = i===0?'gold':i===1?'silver':i===2?'bronze':'';
       return `<div class="rank-item"><div class="rank-num ${nc}">${i+1}</div><div class="rank-info"><div class="reason">${escapeHtml(item.reason.slice(0,30))}${item.reason.length>30?'...':''}</div><div class="times">${item.count}回</div></div><div class="rank-amount">¥${item.amount.toLocaleString('ja-JP')}</div></div>`;
     }).join('');
+  }
+
+  function renderAllTimeHighs() {
+    const dayValEl = document.getElementById('maxSpendDayVal');
+    const daySubEl = document.getElementById('maxSpendDaySub');
+    const weekValEl = document.getElementById('maxSpendWeekVal');
+    const weekSubEl = document.getElementById('maxSpendWeekSub');
+    const monthValEl = document.getElementById('maxSpendMonthVal');
+    const monthSubEl = document.getElementById('maxSpendMonthSub');
+    
+    if (!dayValEl || !daySubEl || !weekValEl || !weekSubEl || !monthValEl || !monthSubEl) return;
+    
+    if (records.length === 0) {
+      dayValEl.textContent = '¥0';
+      daySubEl.textContent = 'データがありません';
+      weekValEl.textContent = '¥0';
+      weekSubEl.textContent = 'データがありません';
+      monthValEl.textContent = '¥0';
+      monthSubEl.textContent = 'データがありません';
+      return;
+    }
+
+    // 1. Calculate Max Day
+    const dayMap = {};
+    records.forEach(r => {
+      const dateStr = new Date(r.timestamp).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' });
+      dayMap[dateStr] = (dayMap[dateStr] || 0) + r.amount;
+    });
+    const maxDay = Object.entries(dayMap).reduce((max, curr) => curr[1] > max[1] ? curr : max, ['', 0]);
+    if (maxDay[0]) {
+      dayValEl.textContent = `¥${maxDay[1].toLocaleString('ja-JP')}`;
+      daySubEl.textContent = `${maxDay[0]}`;
+    }
+
+    // 2. Calculate Max Week
+    const getWeekKey = (date) => {
+      const d = new Date(date);
+      d.setHours(0, 0, 0, 0);
+      const day = d.getDay(), diff = d.getDate() - day + (day === 0 ? -6 : 1);
+      const monday = new Date(d.setDate(diff));
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      const label = `${monday.getFullYear()}年 ${monday.getMonth() + 1}/${monday.getDate()} 〜 ${sunday.getMonth() + 1}/${sunday.getDate()}`;
+      return { key: monday.toDateString(), label };
+    };
+
+    const weekMap = {};
+    records.forEach(r => {
+      const wk = getWeekKey(new Date(r.timestamp));
+      weekMap[wk.key] = weekMap[wk.key] || { amount: 0, label: wk.label };
+      weekMap[wk.key].amount += r.amount;
+    });
+    const maxWeek = Object.entries(weekMap).reduce((max, curr) => curr[1].amount > max[1].amount ? curr : max, ['', { amount: 0, label: 'データがありません' }]);
+    if (maxWeek[0]) {
+      weekValEl.textContent = `¥${maxWeek[1].amount.toLocaleString('ja-JP')}`;
+      weekSubEl.textContent = `${maxWeek[1].label}`;
+    }
+
+    // 3. Calculate Max Month
+    const monthMap = {};
+    records.forEach(r => {
+      const d = new Date(r.timestamp);
+      const monthStr = `${d.getFullYear()}年 ${d.getMonth() + 1}月`;
+      monthMap[monthStr] = (monthMap[monthStr] || 0) + r.amount;
+    });
+    const maxMonth = Object.entries(monthMap).reduce((max, curr) => curr[1] > max[1] ? curr : max, ['', 0]);
+    if (maxMonth[0]) {
+      monthValEl.textContent = `¥${maxMonth[1].toLocaleString('ja-JP')}`;
+      monthSubEl.textContent = `${maxMonth[0]}`;
+    }
   }
 
   // ===== HISTORY =====
