@@ -1106,7 +1106,7 @@
         </div>
 
         <div style="height:16px"></div>
-        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v2.5.4 · 歴代最多支出記録（日/週/月）/ クラウド自動同期・同期エンジン最適化対応</p>
+        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v2.5.5 · 歴代最多支出記録（日/週/月）/ クラウド自動同期・ズーム無効化対応</p>
         <div style="height:24px"></div>
       </div>
     </div>
@@ -3341,7 +3341,23 @@
     localStorage.setItem('payguard_demo_loaded', 'true');
   }
 
-  // ===== START =====
+  // ピンチズーム（マルチタッチ）の無効化
+  document.addEventListener('touchstart', (e) => {
+    if (e.touches.length > 1) {
+      e.preventDefault();
+    }
+  }, { passive: false });
+
+  // ダブルタップズームの無効化
+  let lastTouchEnd = 0;
+  document.addEventListener('touchend', (e) => {
+    const now = new Date().getTime();
+    if (now - lastTouchEnd <= 300) {
+      e.preventDefault();
+    }
+    lastTouchEnd = now;
+  }, { passive: false });
+
   addDemoData();
   init();
   </script>
