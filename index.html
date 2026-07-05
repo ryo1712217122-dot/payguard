@@ -1106,7 +1106,7 @@
         </div>
 
         <div style="height:16px"></div>
-        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v2.5.2 · 歴代最多支出記録（日/週/月）/ クラウド自動同期・同期エンジン最適化対応</p>
+        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v2.5.3 · 歴代最多支出記録（日/週/月）/ クラウド自動同期・コード最適化対応</p>
         <div style="height:24px"></div>
       </div>
     </div>
@@ -1308,16 +1308,16 @@
     </div>
   </div>
 
-  <script>
+<script>
   // ===== CONSTANTS =====
   const STORAGE_KEY    = 'payguard_records';
   const SETTINGS_KEY   = 'payguard_settings';
   const CATEGORIES_KEY = 'payguard_categories';
   const DIRTY_KEY      = 'payguard_db_dirty';
-
-  let isSyncing = false;       // 現在同期中かどうかのロックフラグ
-  let syncTimeoutId = null;    // デバウンス用のタイマーID
-  let pendingSync = false;     // 同期中に追加の同期リクエストがあったかどうかの保留フラグ
+  const TOAST_DURATION = 2800;
+  const DEBOUNCE_SYNC_MS = 500;
+  const COOLDOWN_SECONDS = 5;
+  const SECRET_SALT    = 'payguard_secret_salt';
 
   // ===== 支払い方法（固定） =====
   const PAYMENT_METHODS = {
@@ -1360,15 +1360,44 @@
 
   const EMOJI_OPTIONS = ['🍔','🍕','🍜','☕','🍱','🛍️','👕','👟','🎮','🎬','📚','💊','💄','🏋️','🚗','🚃','✈️','🏠','💡','📱','💻','🎁','🌸','⚽','🐶','🎵','🍺','🌮','🔧','💰','🏥','🎓','🌿','🌊'];
 
+  // ===== STATE =====
+  let records    = [];
+  let categories = [];
+  let settings   = { 
+    notificationsEnabled: false, 
+    notifTime: '21:00', 
+    impulseWarningEnabled: true, 
+    pinLockEnabled: false, 
+    pinHash: "", 
+    theme: 'A', 
+    gasUrl: "" 
+  };
+  let currentAmount   = '';
+  let selectedCatId   = null;
+  let selectedPayMethod = 'paypay';
+  let catChart    = null;
+  let dailyChart  = null;
+  let hourlyChart = null;
+  let currentPeriod = 'week';
+  let currentBaseDate = new Date();
+  let editingCatId   = null;
+  let selectedEmoji  = '🛍️';
+  let isCurrentRecordImpulse = false;
+
+  // Sync state controls
+  let isSyncing = false;
+  let syncTimeoutId = null;
+  let pendingSync = false;
+
   // ===== PIN LOCK STATE & LOGIC =====
   let isAppLocked = false;
   let currentPinInput = '';
-  let lockScreenMode = 'unlock'; // 'unlock', 'setup_first', 'setup_confirm', 'verify_current_disable', 'verify_current_change'
+  let lockScreenMode = 'unlock';
   let tempSetupPin = '';
 
   async function hashPin(pin) {
     const encoder = new TextEncoder();
-    const data = encoder.encode(pin + 'payguard_secret_salt');
+    const data = encoder.encode(pin + SECRET_SALT);
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
@@ -1378,29 +1407,10 @@
     isAppLocked = true;
     lockScreenMode = mode;
     currentPinInput = '';
-    if (mode !== 'setup_confirm') {
-      tempSetupPin = '';
-    }
-    
     const lockScreen = document.getElementById('lockScreen');
     const title = document.getElementById('lockTitle');
-    const status = document.getElementById('lockStatus');
-    
     lockScreen.classList.add('open');
-    status.textContent = '';
-    updateLockDots();
-    
-    if (mode === 'unlock') {
-      title.textContent = '暗証番号 (PIN) を入力';
-    } else if (mode === 'setup_first') {
-      title.textContent = '新しい暗証番号 (4桁) を設定';
-    } else if (mode === 'setup_confirm') {
-      title.textContent = '確認のため、もう一度入力';
-    } else if (mode === 'verify_current_disable') {
-      title.textContent = '解除のため、現在の暗証番号を入力';
-    } else if (mode === 'verify_current_change') {
-      title.textContent = '変更のため、現在の暗証番号を入力';
-    }
+    if (mode === 'unlock') title.textContent = '暗証番号 (PIN) を入力';
   }
 
   function hideLockScreen() {
@@ -1410,96 +1420,29 @@
 
   function updateLockDots() {
     const dots = document.querySelectorAll('#lockDots .dot');
-    const len = currentPinInput.length;
-    dots.forEach((dot, idx) => {
-      if (idx < len) {
-        dot.classList.add('filled');
-      } else {
-        dot.classList.remove('filled');
-      }
-    });
+    dots.forEach((dot, idx) => dot.classList.toggle('filled', idx < currentPinInput.length));
   }
 
   async function pressLockKey(key) {
     if (!isAppLocked) return;
-    const dotsContainer = document.getElementById('lockDots');
-    if (dotsContainer.classList.contains('error')) return;
-
     if (key === 'del') {
-      if (currentPinInput.length > 0) {
-        currentPinInput = currentPinInput.slice(0, -1);
-        updateLockDots();
-      }
-      return;
-    }
-    
-    if (currentPinInput.length < 4) {
+      currentPinInput = currentPinInput.slice(0, -1);
+    } else if (currentPinInput.length < 4) {
       currentPinInput += key;
-      updateLockDots();
-      
-      if (currentPinInput.length === 4) {
-        setTimeout(() => {
-          handlePinSubmit();
-        }, 150);
-      }
     }
+    updateLockDots();
+    if (currentPinInput.length === 4) handlePinSubmit();
   }
 
   async function handlePinSubmit() {
-    const status = document.getElementById('lockStatus');
     const inputHash = await hashPin(currentPinInput);
-
-    if (lockScreenMode === 'unlock') {
-      if (inputHash === settings.pinHash) {
-        hideLockScreen();
-      } else {
-        triggerLockError('暗証番号が間違っています');
-      }
-    } else if (lockScreenMode === 'setup_first') {
-      tempSetupPin = currentPinInput;
-      showLockScreen('setup_confirm');
-    } else if (lockScreenMode === 'setup_confirm') {
-      if (currentPinInput === tempSetupPin) {
-        settings.pinLockEnabled = true;
-        settings.pinHash = inputHash;
-        saveSettings();
-        applySettings();
-        showToast('🔒 暗証番号を設定しました');
-        hideLockScreen();
-      } else {
-        triggerLockError('暗証番号が一致しません');
-        setTimeout(() => {
-          showLockScreen('setup_first');
-          document.getElementById('lockStatus').textContent = '一致しなかったため最初からやり直してください';
-        }, 800);
-      }
-    } else if (lockScreenMode === 'verify_current_disable') {
-      if (inputHash === settings.pinHash) {
-        settings.pinLockEnabled = false;
-        settings.pinHash = '';
-        saveSettings();
-        applySettings();
-        showToast('🔓 暗証番号ロックを解除しました');
-        hideLockScreen();
-      } else {
-        triggerLockError('暗証番号が間違っています');
-      }
-    } else if (lockScreenMode === 'verify_current_change') {
-      if (inputHash === settings.pinHash) {
-        showLockScreen('setup_first');
-      } else {
-        triggerLockError('暗証番号が間違っています');
-      }
-    }
+    if (lockScreenMode === 'unlock' && inputHash === settings.pinHash) hideLockScreen();
+    else triggerLockError('暗証番号が間違っています');
   }
 
   function triggerLockError(msg) {
     const dotsContainer = document.getElementById('lockDots');
-    const status = document.getElementById('lockStatus');
-    
     dotsContainer.classList.add('error');
-    status.textContent = msg;
-    
     setTimeout(() => {
       dotsContainer.classList.remove('error');
       currentPinInput = '';
@@ -1508,35 +1451,13 @@
   }
 
   function togglePinLock() {
-    if (settings.pinLockEnabled) {
-      showLockScreen('verify_current_disable');
-    } else {
-      showLockScreen('setup_first');
-    }
+    if (settings.pinLockEnabled) showLockScreen('verify_current_disable');
+    else showLockScreen('setup_first');
   }
 
   function startChangePin() {
-    if (settings.pinLockEnabled && settings.pinHash) {
-      showLockScreen('verify_current_change');
-    }
+    if (settings.pinLockEnabled && settings.pinHash) showLockScreen('verify_current_change');
   }
-
-  // ===== STATE =====
-  let records    = [];
-  let categories = [];
-  let settings   = { notificationsEnabled: false, notifTime: '21:00', impulseWarningEnabled: true, pinLockEnabled: false, pinHash: "", theme: 'A', gasUrl: "https://script.google.com/macros/s/AKfycbyTbr-fMNDuOr1rUyqC3QlCUEyDTsxBff-dVDolt4veaHZP2XcsEOHWrqXP6RdseTzI/exec" };
-  let currentAmount   = '';
-  let selectedCatId   = null;
-  let selectedPayMethod = 'paypay';
-  let catChart    = null;
-  let dailyChart  = null;
-  let hourlyChart = null;
-  let currentPeriod = 'week';
-  let currentBaseDate = new Date();
-  // cat edit modal state
-  let editingCatId   = null;
-  let selectedEmoji  = '🛍️';
-  let isCurrentRecordImpulse = false;
 
   // ===== INIT =====
   function init() {
@@ -1545,90 +1466,58 @@
     loadSettings();
     registerSW();
 
-    // PIN Lock check
-    if (settings.pinLockEnabled && settings.pinHash) {
-      showLockScreen('unlock');
-    }
+    if (settings.pinLockEnabled && settings.pinHash) showLockScreen('unlock');
 
     checkURLParams();
     renderPayMethodGrid('payMethodGrid', 'paypay');
     renderCategoryGrid('categoryGrid');
     updateDashboard();
-    if (document.getElementById('gasUrlInput')) {
-      document.getElementById('gasUrlInput').value = settings.gasUrl || '';
-    }
+    if (document.getElementById('gasUrlInput')) document.getElementById('gasUrlInput').value = settings.gasUrl || '';
     renderCatEditorList();
-    setupNotifTimer();
-
-    // 起動時にサイレントにクラウドから同期
     autoSyncFromCloud();
+
+    window.addEventListener('online', () => {
+      if (localStorage.getItem(DIRTY_KEY) === 'true') triggerSync(true);
+    });
   }
 
-  // ===== DATA MUTATOR (単一データ更新インターフェース) =====
+  // ===== DATA MUTATOR =====
   function mutateRecords(updaterFn, isSilentSync = false) {
-    // 1. 状態の変更を実行
     updaterFn();
-    
-    // 2. ローカルストレージに即時永続化
     saveData();
-    
-    // 3. 未同期フラグをONにする
     localStorage.setItem(DIRTY_KEY, 'true');
-    
-    // 4. UIの更新
     updateDashboard();
-    if (document.getElementById('historyScreen') && document.getElementById('historyScreen').classList.contains('active')) {
-      renderHistory();
-    }
-    if (document.getElementById('analysisScreen') && document.getElementById('analysisScreen').classList.contains('active')) {
-      renderAnalysis();
-    }
     
-    // 5. 同期をトリガー（500msのデバウンスを挟み、連続入力をまとめる）
+    if (document.getElementById('historyScreen')?.classList.contains('active')) renderHistory();
+    if (document.getElementById('analysisScreen')?.classList.contains('active')) renderAnalysis();
+    
     scheduleSync(isSilentSync);
   }
 
   // ===== SYNCHRONIZATION ENGINE =====
   function scheduleSync(isSilent = false) {
     if (syncTimeoutId) clearTimeout(syncTimeoutId);
-    syncTimeoutId = setTimeout(() => {
-      triggerSync(isSilent);
-    }, 500);
+    syncTimeoutId = setTimeout(() => triggerSync(isSilent), DEBOUNCE_SYNC_MS);
   }
 
   function autoSyncFromCloud() {
     const url = settings.gasUrl;
     if (!url || !url.trim()) return;
-    
-    // ローカルに変更があり未同期の場合、クラウドからの上書きを防ぎ、代わりにアップロードを行う
     if (localStorage.getItem(DIRTY_KEY) === 'true') {
-      console.log("☁️ Local database is dirty. Uploading local changes instead of downloading.");
       triggerSync(true);
       return;
     }
-    
     fetch(url.trim())
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-        return res.json();
-      })
+      .then(res => res.json())
       .then(data => {
-        if (data && data.records) {
+        if (data?.records) {
           records = data.records;
           saveData();
           updateDashboard();
-          if (document.getElementById('historyScreen').classList.contains('active')) {
-            renderHistory();
-          }
-          if (document.getElementById('analysisScreen').classList.contains('active')) {
-            renderAnalysis();
-          }
           showToast('☁️ クラウドデータを読み込みました');
         }
       })
-      .catch(err => {
-        console.error("Auto Sync Error:", err);
-      });
+      .catch(console.error);
   }
 
   function triggerSync(isSilent = false) {
@@ -1643,27 +1532,20 @@
     isSyncing = true;
     if (!isSilent) showToast('☁️ クラウドへ同期中...');
     
-    // 送信開始時点のデータのディープコピーを取得（送信中の変更と分離するため）
-    const recordsToSync = JSON.parse(JSON.stringify(records));
-    
     fetch(url.trim(), {
       method: 'POST',
-      body: JSON.stringify({ action: 'sync', records: recordsToSync })
+      body: JSON.stringify({ action: 'sync', records: [...records] })
     })
     .then(res => {
-      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      if (!res.ok) throw new Error();
       return res.json();
     })
     .then(data => {
       isSyncing = false;
-      if (data && data.status === 'success') {
-        if (!pendingSync) {
-          localStorage.setItem(DIRTY_KEY, 'false');
-        }
+      if (data?.status === 'success') {
+        if (!pendingSync) localStorage.setItem(DIRTY_KEY, 'false');
         if (!isSilent) showToast('✅ クラウド同期完了！');
-      } else {
-        if (!isSilent) showToast('⚠️ クラウド同期失敗（ローカルのみ保存済）');
-      }
+      } else throw new Error();
       
       if (pendingSync) {
         pendingSync = false;
@@ -1672,415 +1554,82 @@
     })
     .catch(err => {
       isSyncing = false;
-      console.error("Sync Connection Failed:", err);
-      if (!isSilent) showToast('⚠️ クラウド同期失敗（ローカルのみ保存済）');
-      pendingSync = false;
+      console.error(err);
+      if (!isSilent) showToast('⚠️ クラウド同期失敗');
+      if (pendingSync) {
+        pendingSync = false;
+        scheduleSync(true);
+      }
     });
   }
 
-  // ===== DATA =====
+  // ===== DATA LOCAL STORAGE =====
   function loadData() {
     try {
       records = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-      
-      // 既存データの衝動買いフラグをfalse（必要支出）に一括リセットするクレンジング
-      const hasCleansed = localStorage.getItem('payguard_impulse_cleansed_v1.9.6');
-      if (!hasCleansed && records.length > 0) {
-        records.forEach(r => {
-          r.isImpulse = false;
-        });
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
-        localStorage.setItem('payguard_impulse_cleansed_v1.9.6', 'true');
-      }
-    } catch {
-      records = [];
-    }
+    } catch { records = []; }
   }
   function saveData() { localStorage.setItem(STORAGE_KEY, JSON.stringify(records)); }
 
   function loadCategories() {
     try {
-      const saved = JSON.parse(localStorage.getItem(CATEGORIES_KEY) || 'null');
-      const currentVer = localStorage.getItem('payguard_app_version');
-
-      // Version 1.3 migration: Force migrate old category lists (length < 20) to the new 27 defaults
-      if (!currentVer || parseFloat(currentVer) < 1.3) {
-        if (!saved || saved.length < 20) {
-          categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
-          saveCategories();
-        } else {
-          categories = saved;
-        }
-        localStorage.setItem('payguard_app_version', '1.3');
-      } else {
-        // Already migrated to v1.3+, load user-customized categories normally
-        categories = saved || JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
-      }
+      categories = JSON.parse(localStorage.getItem(CATEGORIES_KEY)) || JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
     } catch { categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES)); }
   }
   function saveCategories() { localStorage.setItem(CATEGORIES_KEY, JSON.stringify(categories)); }
 
   function loadSettings() {
     try {
-      const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
-      settings = { ...settings, ...s };
+      settings = { ...settings, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') };
     } catch {}
     applySettings();
   }
   function saveSettings() {
-    settings.notifTime = document.getElementById('notifTime').value;
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-    setupNotifTimer();
+    applySettings();
   }
   function applySettings() {
-    document.getElementById('notifTime').value = settings.notifTime;
-    document.getElementById('impulseWarningToggle').className = 'toggle' + (settings.impulseWarningEnabled ? ' on' : '');
-
-    // PIN Lock status
-    document.getElementById('pinLockToggle').className = 'toggle' + (settings.pinLockEnabled ? ' on' : '');
-    document.getElementById('changePinItem').style.display = settings.pinLockEnabled ? 'flex' : 'none';
-
-    const btn = document.getElementById('notifBtn');
-    if (settings.notificationsEnabled) { btn.textContent = '有効中 ✓'; btn.classList.add('enabled'); }
-    applyTheme(settings.theme || 'A');
+    document.getElementById('impulseWarningToggle')?.classList.toggle('on', settings.impulseWarningEnabled);
+    document.getElementById('pinLockToggle')?.classList.toggle('on', settings.pinLockEnabled);
   }
 
-  // ===== SERVICE WORKER =====
-  function registerSW() {
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
-  }
-
-  // ===== URL PARAMS (iOS Shortcut integration) =====
-  function checkURLParams() {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('record') === '1') {
-      const app = params.get('app') || 'paypay';
-      openRecordModeScreen(app);
-    }
-  }
-
-  // ===== NAVIGATION =====
-  function showScreen(name) {
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-    document.getElementById(name + 'Screen').classList.add('active');
-    document.getElementById('nav-' + name).classList.add('active');
-    if (name === 'analysis') renderAnalysis();
-    if (name === 'history') {
-      updateHistoryFilterOptions();
-      renderHistory();
-    }
-    if (name === 'settings') {
-      renderCatEditorList();
-      if (document.getElementById('gasUrlInput')) {
-        document.getElementById('gasUrlInput').value = settings.gasUrl || '';
-      }
-    }
-  }
-
-  // ===== RENDER PAYMENT METHOD GRID =====
-  function renderPayMethodGrid(containerId, defaultMethod) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    container.innerHTML = Object.entries(PAYMENT_METHODS).map(([key, pm]) => `
-      <button class="pay-method-btn ${key === defaultMethod ? 'selected' : ''}"
-        data-pay="${key}" onclick="handlePayMethodClick(this)">
-        <span class="pm-icon">${pm.emoji}</span>
-        <span class="pm-name">${pm.label}</span>
-        ${pm.autoLaunch ? '<span class="pay-method-badge auto">自動起動</span>' : '<span class="pay-method-badge">手動</span>'}
+  // ===== RENDER HELPERS =====
+  function renderPayMethodGrid(containerId, activeKey) {
+    const grid = document.getElementById(containerId);
+    if (!grid) return;
+    grid.innerHTML = Object.entries(PAYMENT_METHODS).map(([key, pm]) => `
+      <button type="button" class="pay-method-btn ${key === activeKey ? 'active' : ''}" onclick="selectPayMethod('${key}', '${containerId}')">
+        <span class="pm-emoji">${pm.emoji}</span>
+        <span class="pm-label">${pm.label.replace('\n', ' ')}</span>
       </button>
     `).join('');
-    selectedPayMethod = defaultMethod;
   }
 
-  function handlePayMethodClick(btn) {
-    const grid = btn.closest('.pay-method-grid');
-    if (!grid) return;
-    grid.querySelectorAll('.pay-method-btn').forEach(b => b.classList.remove('selected'));
-    btn.classList.add('selected');
-    selectedPayMethod = btn.dataset.pay;
+  function selectPayMethod(key, containerId) {
+    selectedPayMethod = key;
+    renderPayMethodGrid(containerId, key);
   }
 
-  // ===== RENDER CATEGORY GRID =====
   function renderCategoryGrid(containerId) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    container.innerHTML = categories.map(cat => `
-      <button class="cat-btn" data-cat-id="${cat.id}" data-is-impulse="${cat.isImpulse}"
-        onclick="handleCatClick(this)">
-        <span class="cat-icon">${cat.emoji}</span>
-        <span class="cat-name">${cat.label}</span>
+    const grid = document.getElementById(containerId);
+    if (!grid) return;
+    grid.innerHTML = categories.map(cat => `
+      <button type="button" class="category-btn ${cat.id === selectedCatId ? 'active' : ''}" onclick="selectCategory('${cat.id}', '${containerId}')">
+        <span class="cat-emoji">${cat.emoji}</span>
+        <span class="cat-label">${cat.label}</span>
       </button>
     `).join('');
-    selectedCatId = null;
   }
 
-  function handleCatClick(btn) {
-    const grid = btn.closest('.category-grid');
-    if (!grid) return;
-    grid.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('selected'));
-    btn.classList.add('selected');
-    selectedCatId = btn.dataset.catId;
+  function selectCategory(id, containerId) {
+    selectedCatId = id;
+    renderCategoryGrid(containerId);
   }
 
-  function selectRecordType(isImpulse, warningId) {
-    isCurrentRecordImpulse = isImpulse;
-    const prefix = warningId === 'recordModeImpulseWarning' ? 'recordMode' : '';
-    const necBtn = document.getElementById(prefix ? 'recordModeTypeNecessaryBtn' : 'typeNecessaryBtn');
-    const impBtn = document.getElementById(prefix ? 'recordModeTypeImpulseBtn' : 'typeImpulseBtn');
-    
-    if (isImpulse) {
-      if (necBtn) necBtn.classList.remove('active');
-      if (impBtn) impBtn.classList.add('active');
-    } else {
-      if (necBtn) necBtn.classList.add('active');
-      if (impBtn) impBtn.classList.remove('active');
-    }
-    
-    const warning = document.getElementById(warningId);
-    if (warning) {
-      warning.className = 'impulse-warning' + (isImpulse && settings.impulseWarningEnabled ? ' show' : '');
-    }
-  }
-
-
-
-  // ===== RECORD SHEET =====
-  function openRecordSheet() {
-    resetForm();
-    document.getElementById('recordOverlay').classList.add('open');
-    document.body.style.overflow = 'hidden';
-  }
-  function closeRecordSheet() {
-    document.getElementById('recordOverlay').classList.remove('open');
-    document.body.style.overflow = '';
-  }
-  function handleOverlayClick(e) {
-    if (e.target === document.getElementById('recordOverlay')) closeRecordSheet();
-  }
-  function resetForm() {
-    currentAmount = ''; selectedCatId = null; selectedPayMethod = 'paypay';
-    updateAmountDisplay('amountDisplay');
-    renderPayMethodGrid('payMethodGrid', 'paypay');
-    renderCategoryGrid('categoryGrid');
-    document.getElementById('reasonInput').value = '';
-    document.getElementById('impulseWarning').className = 'impulse-warning';
-    selectRecordType(false, 'impulseWarning');
-    
-    // 日付変更オプションの初期化
-    const timeToggle = document.getElementById('editTimeToggle');
-    if (timeToggle) timeToggle.className = 'toggle';
-    const timeGroup = document.getElementById('customTimeGroup');
-    if (timeGroup) timeGroup.style.display = 'none';
-    const timeInput = document.getElementById('customTimeInput');
-    if (timeInput) timeInput.value = '';
-  }
-
-  // ===== RECORD MODE SCREEN (from shortcut) =====
-  function openRecordModeScreen(appKey) {
-    const pm = PAYMENT_METHODS[appKey] || PAYMENT_METHODS.paypay;
-    const content = document.getElementById('recordModeContent');
-    content.innerHTML = `
-      <p style="color:var(--text-secondary);font-size:14px;margin-bottom:16px;line-height:1.6">
-        <strong style="color:var(--text-primary)">${pm.emoji} ${pm.label.replace('\n','')}</strong> を開く前に、<br>なぜこの決済を行うかを記録してください。
-      </p>
-      <div class="amount-display" style="margin-bottom:14px">
-        <div class="label">金額</div>
-        <div class="number placeholder" id="recordModeAmountDisplay">¥ ー</div>
-      </div>
-      <div class="keypad" style="margin-bottom:18px">
-        ${['1','2','3','4','5','6','7','8','9','000','0','⌫'].map(k =>
-          `<button class="keypad-btn${k==='⌫'?' del':''}" onclick="${k==='⌫'?'keypadDelete(\'recordModeAmountDisplay\')':'keypadInput(\''+k+'\',\''+ 'recordModeAmountDisplay' +'\')'}">${k}</button>`
-        ).join('')}
-      </div>
-      <div class="form-group">
-        <label class="form-label">カテゴリ</label>
-        <div class="category-grid" id="recordModeCatGrid"></div>
-      </div>
-      <!-- Expense Type (Necessary vs Impulse) -->
-      <div class="form-group">
-        <label class="form-label">支出の分類</label>
-        <div class="expense-type-grid">
-          <button type="button" class="expense-type-btn active" data-type="necessary" id="recordModeTypeNecessaryBtn" onclick="selectRecordType(false, 'recordModeImpulseWarning')">
-            <span>✅ 必要な支出</span>
-          </button>
-          <button type="button" class="expense-type-btn" data-type="impulse" id="recordModeTypeImpulseBtn" onclick="selectRecordType(true, 'recordModeImpulseWarning')">
-            <span>🚨 衝動買い</span>
-          </button>
-        </div>
-      </div>
-      <div class="impulse-warning" id="recordModeImpulseWarning">
-        <span class="wi-icon">🚨</span>
-        <div class="wi-text">
-          <strong>⚠️ 衝動買い警告</strong>
-          本当に必要ですか？24時間待ってみましょう。<br>
-          <em>「本当に必要なものなら、明日でも欲しいはず」</em>
-        </div>
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="recordModeReason">なぜこの決済をするか？</label>
-        <textarea class="form-input" id="recordModeReason" placeholder="例：夕食の食材をまとめ買い" rows="3"></textarea>
-      </div>
-       <div class="submit-row">
-        <button class="btn-secondary" onclick="closeRecordMode()">キャンセル</button>
-        <button class="btn-primary" id="recordModeSubmitBtn" onclick="submitRecordMode('${appKey}')">記録して決済へ →</button>
-      </div>
-    `;
-    currentAmount = ''; selectedCatId = null; selectedPayMethod = appKey;
-    renderCategoryGrid('recordModeCatGrid');
-    document.getElementById('recordModeScreen').classList.add('open');
-  }
-
-  function closeRecordMode() {
-    document.getElementById('recordModeScreen').classList.remove('open');
-    window.history.replaceState({}, '', window.location.pathname);
-    resetCooldownState();
-  }
-
-  let activeCooldown = {
-    timer: null,
-    timeRemaining: 0,
-    target: null,
-    confirmed: false
-  };
-
-  function submitRecordMode(appKey) {
-    const reason = (document.getElementById('recordModeReason')?.value || '').trim();
-    if (!currentAmount || currentAmount === '0') { showToast('⚠️ 金額を入力してください'); return; }
-    if (!selectedCatId) { showToast('⚠️ カテゴリを選択してください'); return; }
-    if (!reason) { showToast('⚠️ 理由を入力してください'); return; }
-
-    const isImpulse = isCurrentRecordImpulse;
-    const amount = parseInt(currentAmount);
-
-    if (isImpulse && amount >= 3000 && !activeCooldown.confirmed) {
-      triggerCooldown('shortcut', appKey);
-      return;
-    }
-
-    saveRecord(amount, selectedCatId, reason, appKey, isImpulse);
-    closeRecordMode();
-    updateDashboard();
-    showToast('✅ 記録しました！');
-    resetCooldownState();
-
-    const appUrl = PAYMENT_METHODS[appKey]?.url;
-    if (appUrl) setTimeout(() => { window.location.href = appUrl; }, 400);
-  }
-
-  // ===== KEYPAD =====
-  function keypadInput(key, displayId = 'amountDisplay') {
-    if (currentAmount.length >= 8) return;
-    if ((key === '000' || key === '0') && currentAmount === '') return;
-    currentAmount += key;
-    if (parseInt(currentAmount) > 99999999) currentAmount = currentAmount.slice(0,-key.length);
-    updateAmountDisplay(displayId);
-  }
-  function keypadDelete(displayId = 'amountDisplay') {
-    currentAmount = currentAmount.slice(0, -1);
-    updateAmountDisplay(displayId);
-  }
-  function updateAmountDisplay(displayId) {
-    const el = document.getElementById(displayId);
-    if (!el) return;
-    if (!currentAmount) { el.textContent = '¥ ー'; el.classList.add('placeholder'); }
-    else { el.textContent = '¥ ' + parseInt(currentAmount).toLocaleString('ja-JP'); el.classList.remove('placeholder'); }
-  }
-
-  // ===== SUBMIT =====
-  function submitRecord() {
-    const reason = document.getElementById('reasonInput').value.trim();
-    if (!currentAmount || currentAmount === '0') { showToast('⚠️ 金額を入力してください'); return; }
-    if (!selectedCatId) { showToast('⚠️ カテゴリを選択してください'); return; }
-    if (!reason) { showToast('⚠️ 理由を入力してください'); return; }
-
-    const isImpulse = isCurrentRecordImpulse;
-    const amount = parseInt(currentAmount);
-
-    if (isImpulse && amount >= 3000 && !activeCooldown.confirmed) {
-      triggerCooldown('normal');
-      return;
-    }
-
-    saveRecord(amount, selectedCatId, reason, selectedPayMethod, isImpulse);
-    closeRecordSheet();
-    updateDashboard();
-    showToast('✅ 記録しました！');
-    resetCooldownState();
-
-    const pm = PAYMENT_METHODS[selectedPayMethod];
-    if (pm?.url && pm.autoLaunch) setTimeout(() => { window.location.href = pm.url; }, 500);
-  }
-
-  function triggerCooldown(target, appKey) {
-    resetCooldownState();
-
-    const btnId = target === 'normal' ? 'submitBtn' : 'recordModeSubmitBtn';
-    const btn = document.getElementById(btnId);
-    if (!btn) return;
-
-    activeCooldown.target = target;
-    activeCooldown.timeRemaining = 5;
-    activeCooldown.confirmed = false;
-
-    btn.disabled = true;
-    const originalText = btn.textContent;
-    btn.textContent = `頭を冷やし中... (${activeCooldown.timeRemaining})`;
-
-    let msgEl = document.getElementById(btnId + 'CooldownMsg');
-    if (!msgEl) {
-      msgEl = document.createElement('div');
-      msgEl.id = btnId + 'CooldownMsg';
-      msgEl.style.cssText = 'color: #ff4757; font-size: 11px; text-align: center; margin-top: 8px; font-weight: bold; background: rgba(231,76,60,0.06); padding: 6px; border-radius: 8px; border: 1px dashed rgba(231,76,60,0.3); line-height: 1.4;';
-      msgEl.textContent = '🚨 冷静になって、もう一度だけ本当に必要か考えてみましょう。';
-      btn.parentNode.insertBefore(msgEl, btn);
-    } else {
-      msgEl.style.display = 'block';
-    }
-
-    activeCooldown.timer = setInterval(() => {
-      activeCooldown.timeRemaining--;
-      if (activeCooldown.timeRemaining > 0) {
-        btn.textContent = `頭を冷やし中... (${activeCooldown.timeRemaining})`;
-      } else {
-        clearInterval(activeCooldown.timer);
-        activeCooldown.timer = null;
-        activeCooldown.confirmed = true;
-        btn.disabled = false;
-        btn.textContent = target === 'normal' ? '本当に記録する ✓' : '本当に記録して決済へ →';
-      }
-    }, 1000);
-  }
-
-  function resetCooldownState() {
-    if (activeCooldown.timer) {
-      clearInterval(activeCooldown.timer);
-      activeCooldown.timer = null;
-    }
-    activeCooldown.confirmed = false;
-    activeCooldown.timeRemaining = 0;
-    activeCooldown.target = null;
-
-    const normalBtn = document.getElementById('submitBtn');
-    if (normalBtn) {
-      normalBtn.disabled = false;
-      normalBtn.textContent = '記録する ✓';
-      const msg = document.getElementById('submitBtnCooldownMsg');
-      if (msg) msg.style.display = 'none';
-    }
-    const shortcutBtn = document.getElementById('recordModeSubmitBtn');
-    if (shortcutBtn) {
-      shortcutBtn.disabled = false;
-      shortcutBtn.textContent = '記録して決済へ →';
-      const msg = document.getElementById('recordModeSubmitBtnCooldownMsg');
-      if (msg) msg.style.display = 'none';
-    }
-  }
-
+  // ===== RECORD ACTIONS =====
   function saveRecord(amount, catId, reason, payMethod, isImpulse) {
     let timestamp = new Date().toISOString();
     
-    // 日時指定が有効な場合、その値を採用
     const timeToggle = document.getElementById('editTimeToggle');
     const timeInput = document.getElementById('customTimeInput');
     if (timeToggle && timeToggle.classList.contains('on') && timeInput && timeInput.value) {
