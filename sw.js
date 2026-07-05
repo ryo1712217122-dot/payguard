@@ -1,4 +1,4 @@
-const CACHE_NAME = 'payguard-v36';
+const CACHE_NAME = 'payguard-v37';
 const urlsToCache = ['./', 'index.html', 'manifest.json', 'icon-192.png'];
 
 self.addEventListener('install', event => {
@@ -56,4 +56,4 @@ self.addEventListener('notificationclick', event => {
   );
 });
 
-// Build trigger: 2026-07-06T01:07:00
+// Build trigger: 2026-07-06T01:11:00
