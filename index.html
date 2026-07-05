@@ -1106,7 +1106,7 @@
         </div>
 
         <div style="height:16px"></div>
-        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v2.5.1 · 歴代最多支出記録（日/週/月）/ クラウド自動同期・競合防止対応</p>
+        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v2.5.2 · 歴代最多支出記録（日/週/月）/ クラウド自動同期・同期エンジン最適化対応</p>
         <div style="height:24px"></div>
       </div>
     </div>
@@ -1313,6 +1313,11 @@
   const STORAGE_KEY    = 'payguard_records';
   const SETTINGS_KEY   = 'payguard_settings';
   const CATEGORIES_KEY = 'payguard_categories';
+  const DIRTY_KEY      = 'payguard_db_dirty';
+
+  let isSyncing = false;       // 現在同期中かどうかのロックフラグ
+  let syncTimeoutId = null;    // デバウンス用のタイマーID
+  let pendingSync = false;     // 同期中に追加の同期リクエストがあったかどうかの保留フラグ
 
   // ===== 支払い方法（固定） =====
   const PAYMENT_METHODS = {
@@ -1559,19 +1564,54 @@
     autoSyncFromCloud();
   }
 
+  // ===== DATA MUTATOR (単一データ更新インターフェース) =====
+  function mutateRecords(updaterFn, isSilentSync = false) {
+    // 1. 状態の変更を実行
+    updaterFn();
+    
+    // 2. ローカルストレージに即時永続化
+    saveData();
+    
+    // 3. 未同期フラグをONにする
+    localStorage.setItem(DIRTY_KEY, 'true');
+    
+    // 4. UIの更新
+    updateDashboard();
+    if (document.getElementById('historyScreen') && document.getElementById('historyScreen').classList.contains('active')) {
+      renderHistory();
+    }
+    if (document.getElementById('analysisScreen') && document.getElementById('analysisScreen').classList.contains('active')) {
+      renderAnalysis();
+    }
+    
+    // 5. 同期をトリガー（500msのデバウンスを挟み、連続入力をまとめる）
+    scheduleSync(isSilentSync);
+  }
+
+  // ===== SYNCHRONIZATION ENGINE =====
+  function scheduleSync(isSilent = false) {
+    if (syncTimeoutId) clearTimeout(syncTimeoutId);
+    syncTimeoutId = setTimeout(() => {
+      triggerSync(isSilent);
+    }, 500);
+  }
+
   function autoSyncFromCloud() {
     const url = settings.gasUrl;
     if (!url || !url.trim()) return;
     
     // ローカルに変更があり未同期の場合、クラウドからの上書きを防ぎ、代わりにアップロードを行う
-    if (localStorage.getItem('payguard_db_dirty') === 'true') {
+    if (localStorage.getItem(DIRTY_KEY) === 'true') {
       console.log("☁️ Local database is dirty. Uploading local changes instead of downloading.");
       triggerSync(true);
       return;
     }
     
     fetch(url.trim())
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        return res.json();
+      })
       .then(data => {
         if (data && data.records) {
           records = data.records;
@@ -1595,27 +1635,46 @@
     const url = settings.gasUrl;
     if (!url || !url.trim()) return;
     
-    localStorage.setItem('payguard_db_dirty', 'true');
+    if (isSyncing) {
+      pendingSync = true;
+      return;
+    }
+    
+    isSyncing = true;
     if (!isSilent) showToast('☁️ クラウドへ同期中...');
+    
+    // 送信開始時点のデータのディープコピーを取得（送信中の変更と分離するため）
+    const recordsToSync = JSON.parse(JSON.stringify(records));
     
     fetch(url.trim(), {
       method: 'POST',
-      body: JSON.stringify({ action: 'sync', records: records })
+      body: JSON.stringify({ action: 'sync', records: recordsToSync })
     })
     .then(res => {
-      return res.json().catch(() => ({ status: 'success' }));
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      return res.json();
     })
     .then(data => {
+      isSyncing = false;
       if (data && data.status === 'success') {
-        localStorage.setItem('payguard_db_dirty', 'false');
+        if (!pendingSync) {
+          localStorage.setItem(DIRTY_KEY, 'false');
+        }
         if (!isSilent) showToast('✅ クラウド同期完了！');
       } else {
         if (!isSilent) showToast('⚠️ クラウド同期失敗（ローカルのみ保存済）');
       }
+      
+      if (pendingSync) {
+        pendingSync = false;
+        scheduleSync(true);
+      }
     })
     .catch(err => {
-      console.error(err);
+      isSyncing = false;
+      console.error("Sync Connection Failed:", err);
       if (!isSilent) showToast('⚠️ クラウド同期失敗（ローカルのみ保存済）');
+      pendingSync = false;
     });
   }
 
@@ -2030,12 +2089,10 @@
     
     const id = Date.now();
     const newRecord = { id, amount, catId, reason, payMethod, isImpulse, timestamp };
-    records.unshift(newRecord);
-    saveData();
-    checkImpulseWarnings();
-
-    // GAS連携の非同期送信
-    triggerSync(false);
+    mutateRecords(() => {
+      records.unshift(newRecord);
+      checkImpulseWarnings();
+    }, false);
   }
 
   function saveGasUrl() {
@@ -3044,14 +3101,13 @@
 
   function deleteRecord(id) {
     if (!confirm('🗑️ この決済記録を削除しますか？')) return;
-    records = records.filter(r => r.id !== id);
-    saveData();
-    localStorage.setItem('payguard_demo_loaded', 'true'); // Prevents demo data load on empty records
-    updateDashboard();
-    renderHistory();
-    renderAnalysis();
+    
+    mutateRecords(() => {
+      records = records.filter(r => r.id !== id);
+      localStorage.setItem('payguard_demo_loaded', 'true'); // Prevents demo data load on empty records
+    }, true);
+    
     showToast('🗑️ 記録を削除しました');
-    triggerSync(true);
   }
 
   function clearAllData() {
@@ -3225,19 +3281,17 @@
     const idx = records.findIndex(r => r.id === id);
     if (idx === -1) return;
 
-    records[idx].amount = amount;
-    records[idx].payMethod = payMethod;
-    records[idx].catId = catId;
-    records[idx].reason = reason;
-    records[idx].isImpulse = isEditRecordImpulse;
-    records[idx].timestamp = new Date(timeVal).toISOString();
+    mutateRecords(() => {
+      records[idx].amount = amount;
+      records[idx].payMethod = payMethod;
+      records[idx].catId = catId;
+      records[idx].reason = reason;
+      records[idx].isImpulse = isEditRecordImpulse;
+      records[idx].timestamp = new Date(timeVal).toISOString();
+    }, true);
 
-    saveData();
-    updateDashboard();
-    renderHistory(); // Update list
     closeEditRecordModal();
     showToast('📝 変更を保存しました');
-    triggerSync(true);
   }
 
   function toLocalDateTimeString(date) {
