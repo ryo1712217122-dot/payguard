@@ -1106,7 +1106,7 @@
         </div>
 
         <div style="height:16px"></div>
-        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v2.4.0 · 歴代最多支出記録（日/週/月）対応</p>
+        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v2.4.1 · 歴代最多支出記録（日/週/月）/ クラウド自動同期対応</p>
         <div style="height:24px"></div>
       </div>
     </div>
@@ -1554,6 +1554,69 @@
     }
     renderCatEditorList();
     setupNotifTimer();
+
+    // 起動時にサイレントにクラウドから同期
+    autoSyncFromCloud();
+  }
+
+  function autoSyncFromCloud() {
+    const url = settings.gasUrl;
+    if (!url || !url.trim()) return;
+    
+    // ローカルに変更があり未同期の場合、クラウドからの上書きを防ぎ、代わりにアップロードを行う
+    if (localStorage.getItem('payguard_db_dirty') === 'true') {
+      console.log("☁️ Local database is dirty. Uploading local changes instead of downloading.");
+      triggerSync(true);
+      return;
+    }
+    
+    fetch(url.trim())
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.records) {
+          records = data.records;
+          saveData();
+          updateDashboard();
+          if (document.getElementById('historyScreen').classList.contains('active')) {
+            renderHistory();
+          }
+          if (document.getElementById('analysisScreen').classList.contains('active')) {
+            renderAnalysis();
+          }
+          showToast('☁️ クラウドデータを読み込みました');
+        }
+      })
+      .catch(err => {
+        console.error("Auto Sync Error:", err);
+      });
+  }
+
+  function triggerSync(isSilent = false) {
+    const url = settings.gasUrl;
+    if (!url || !url.trim()) return;
+    
+    localStorage.setItem('payguard_db_dirty', 'true');
+    if (!isSilent) showToast('☁️ クラウドへ同期中...');
+    
+    fetch(url.trim(), {
+      method: 'POST',
+      body: JSON.stringify({ action: 'sync', records: records })
+    })
+    .then(res => {
+      return res.json().catch(() => ({ status: 'success' }));
+    })
+    .then(data => {
+      if (data && data.status === 'success') {
+        localStorage.setItem('payguard_db_dirty', 'false');
+        if (!isSilent) showToast('✅ クラウド同期完了！');
+      } else {
+        if (!isSilent) showToast('⚠️ クラウド同期失敗（ローカルのみ保存済）');
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      if (!isSilent) showToast('⚠️ クラウド同期失敗（ローカルのみ保存済）');
+    });
   }
 
   // ===== DATA =====
@@ -1972,25 +2035,7 @@
     checkImpulseWarnings();
 
     // GAS連携の非同期送信
-    if (settings.gasUrl && settings.gasUrl.trim()) {
-      showToast('☁️ クラウドへ同期中...');
-      fetch(settings.gasUrl.trim(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'add', record: newRecord })
-      }).then(res => {
-        return res.json().catch(() => ({ status: 'success' }));
-      }).then(data => {
-        if (data && data.status === 'success') {
-          showToast('✅ クラウド同期完了！');
-        } else {
-          showToast('⚠️ クラウド同期失敗（ローカルのみ保存済）');
-        }
-      }).catch(err => {
-        console.error(err);
-        showToast('⚠️ クラウド同期失敗（ローカルのみ保存済）');
-      });
-    }
+    triggerSync(false);
   }
 
   function saveGasUrl() {
@@ -2025,23 +2070,7 @@
     if (!url) { showToast('⚠️ GAS URLが設定されていません'); return; }
     if (!confirm('ローカルの全履歴（' + records.length + '件）でスプレッドシートを上書きします。よろしいですか？')) return;
     
-    showToast('📤 クラウドへデータを送信中...');
-    fetch(url, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'sync', records: records })
-    })
-    .then(res => res.json())
-    .then(data => {
-      if (data && data.status === 'success') {
-        showToast('✅ 全同期が完了しました！');
-      } else {
-        showToast('⚠️ 同期エラー: ' + (data.message || '不明なエラー'));
-      }
-    })
-    .catch(err => {
-      console.error(err);
-      showToast('❌ 送信に失敗しました');
-    });
+    triggerSync(false);
   }
 
   function syncFromCloud() {
@@ -2056,6 +2085,7 @@
       if (data && data.records) {
         records = data.records;
         saveData();
+        localStorage.setItem('payguard_db_dirty', 'false'); // クラウドと一致したためdirtyを解除
         updateDashboard();
         showToast(`✅ 復元完了！ (${records.length}件 of data)`);
       } else {
@@ -3021,6 +3051,7 @@
     renderHistory();
     renderAnalysis();
     showToast('🗑️ 記録を削除しました');
+    triggerSync(true);
   }
 
   function clearAllData() {
@@ -3206,6 +3237,7 @@
     renderHistory(); // Update list
     closeEditRecordModal();
     showToast('📝 変更を保存しました');
+    triggerSync(true);
   }
 
   function toLocalDateTimeString(date) {
