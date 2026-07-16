@@ -1,4 +1,4 @@
-const CACHE_NAME = 'payguard-v38';
+const CACHE_NAME = 'payguard-v39';
 const urlsToCache = ['./', 'index.html', 'manifest.json', 'icon-192.png'];
 
 self.addEventListener('install', event => {

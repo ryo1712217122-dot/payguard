@@ -258,11 +258,6 @@
     .pay-method-btn .pm-icon { font-size: 22px; }
     .pay-method-btn .pm-name { font-size: 10px; font-family: var(--font-jp); font-weight: 600; text-align: center; line-height: 1.3; }
     .pay-method-btn.selected { border-color: var(--accent); background: var(--accent-glow); color: var(--text-primary); }
-    .pay-method-badge {
-      font-size: 9px; background: rgba(117,177,169,0.25); color: var(--accent-light);
-      border-radius: 4px; padding: 1px 5px; margin-top: 2px; font-weight: 600;
-    }
-    .pay-method-badge.auto { background: var(--success-light); color: var(--success); }
 
     /* ===== CATEGORY GRID ===== */
     .category-grid {
@@ -1106,7 +1101,7 @@
         </div>
 
         <div style="height:16px"></div>
-        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v2.5.5 · 歴代最多支出記録（日/週/月）/ クラウド自動同期・ズーム無効化対応</p>
+        <p style="text-align:center;font-size:11px;color:var(--text-muted)">PayGuard v2.5.6 · 決済アプリ自動起動を廃止・クレジットカード対応</p>
         <div style="height:24px"></div>
       </div>
     </div>
@@ -1321,10 +1316,11 @@
 
   // ===== 支払い方法（固定） =====
   const PAYMENT_METHODS = {
-    paypay:   { label: 'PayPay',        emoji: '💴', url: 'paypay://',  autoLaunch: true  },
-    applepay: { label: 'Apple Pay\n(iD)', emoji: '🍎', url: 'shoebox://', autoLaunch: true  },
-    suica:    { label: 'Suica',          emoji: '🚃', url: '',           autoLaunch: false },
-    cash:     { label: '現金',           emoji: '💵', url: '',           autoLaunch: false },
+    paypay:   { label: 'PayPay',        emoji: '💴' },
+    applepay: { label: 'Apple Pay\n(iD)', emoji: '🍎' },
+    credit:   { label: 'クレジット\nカード', emoji: '💳' },
+    suica:    { label: 'Suica',          emoji: '🚃' },
+    cash:     { label: '現金',           emoji: '💵' },
   };
 
   // ===== DEFAULT CATEGORIES =====
@@ -1794,7 +1790,6 @@
         data-pay="${key}" onclick="handlePayMethodClick(this)">
         <span class="pm-icon">${pm.emoji}</span>
         <span class="pm-name">${pm.label}</span>
-        ${pm.autoLaunch ? '<span class="pay-method-badge auto">自動起動</span>' : '<span class="pay-method-badge">手動</span>'}
       </button>
     `).join('');
     selectedPayMethod = defaultMethod;
@@ -1930,7 +1925,7 @@
       </div>
        <div class="submit-row">
         <button class="btn-secondary" onclick="closeRecordMode()">キャンセル</button>
-        <button class="btn-primary" id="recordModeSubmitBtn" onclick="submitRecordMode('${appKey}')">記録して決済へ →</button>
+        <button class="btn-primary" id="recordModeSubmitBtn" onclick="submitRecordMode('${appKey}')">記録する ✓</button>
       </div>
     `;
     currentAmount = ''; selectedCatId = null; selectedPayMethod = appKey;
@@ -1970,9 +1965,6 @@
     updateDashboard();
     showToast('✅ 記録しました！');
     resetCooldownState();
-
-    const appUrl = PAYMENT_METHODS[appKey]?.url;
-    if (appUrl) setTimeout(() => { window.location.href = appUrl; }, 400);
   }
 
   // ===== KEYPAD =====
@@ -2014,9 +2006,6 @@
     updateDashboard();
     showToast('✅ 記録しました！');
     resetCooldownState();
-
-    const pm = PAYMENT_METHODS[selectedPayMethod];
-    if (pm?.url && pm.autoLaunch) setTimeout(() => { window.location.href = pm.url; }, 500);
   }
 
   function triggerCooldown(target, appKey) {
@@ -2054,7 +2043,7 @@
         activeCooldown.timer = null;
         activeCooldown.confirmed = true;
         btn.disabled = false;
-        btn.textContent = target === 'normal' ? '本当に記録する ✓' : '本当に記録して決済へ →';
+        btn.textContent = '本当に記録する ✓';
       }
     }, 1000);
   }
@@ -2078,7 +2067,7 @@
     const shortcutBtn = document.getElementById('recordModeSubmitBtn');
     if (shortcutBtn) {
       shortcutBtn.disabled = false;
-      shortcutBtn.textContent = '記録して決済へ →';
+      shortcutBtn.textContent = '記録する ✓';
       const msg = document.getElementById('recordModeSubmitBtnCooldownMsg');
       if (msg) msg.style.display = 'none';
     }
